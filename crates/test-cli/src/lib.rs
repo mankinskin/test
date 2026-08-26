@@ -54,6 +54,8 @@ pub enum CliRunError {
     Io(String, String),
     #[error("failed to launch command '{0}': {1}")]
     Spawn(String, String),
+    #[error("{0}")]
+    ConsumerWorkspace(#[from] memory_kernel::workspace::ConsumerWorkspaceError),
 }
 
 pub fn run(cli: TestCli) -> Result<CliOutput, CliRunError> {
@@ -72,27 +74,27 @@ pub fn run(cli: TestCli) -> Result<CliOutput, CliRunError> {
         ));
     }
 
-    let store_root = workspace::resolve_requested_store_root(
+    let store_root = workspace::resolve_consumer_store_root(
         cli.store_root.as_deref(),
         cli.workspace_root.as_deref(),
         None,
         TEST_STORE_DIR,
-    );
+    )?;
     let config =
         TestStoreConfig::new(store_root.clone(), cli.workspace_slug.clone());
 
     let log_root = match store_root.parent() {
         Some(parent) => parent.join(LOG_STORE_DIR),
-        None => workspace::resolve_requested_store_root(
+        None => workspace::resolve_consumer_store_root(
             None,
             cli.workspace_root.as_deref(),
             None,
             LOG_STORE_DIR,
-        ),
+        )?,
     };
     let log_config = LogStoreConfig::new(log_root, cli.workspace_slug.clone());
     let spec_root =
-        resolve_spec_root(&store_root, cli.workspace_root.as_deref());
+        resolve_spec_root(&store_root, cli.workspace_root.as_deref())?;
 
     let payload = dispatch(&config, &log_config, &spec_root, cli.command)?;
 
@@ -130,10 +132,10 @@ fn dispatch(
 fn resolve_spec_root(
     store_root: &std::path::Path,
     workspace_root: Option<&std::path::Path>,
-) -> PathBuf {
+) -> Result<PathBuf, memory_kernel::workspace::ConsumerWorkspaceError> {
     match store_root.parent() {
-        Some(parent) => parent.join(".spec"),
-        None => workspace::resolve_requested_store_root(
+        Some(parent) => Ok(parent.join(".spec")),
+        None => workspace::resolve_consumer_store_root(
             None,
             workspace_root,
             None,
