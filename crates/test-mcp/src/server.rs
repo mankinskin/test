@@ -30,6 +30,7 @@ use test_api::{
     ExecutionQuery,
     ExecutionSort,
     TestError,
+    TestRecordKind,
     TestStoreConfig,
     ValidationExecution,
     ValidationLinks,
@@ -37,6 +38,7 @@ use test_api::{
     ValidationProvenance,
     ValidationSpec,
 };
+use uuid::Uuid;
 
 // ── Input types ───────────────────────────────────────────────────────────────
 
@@ -198,32 +200,72 @@ pub struct ListExecutionsInput {
     pub limit: Option<usize>,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TestMoveInput {
+    /// Concrete workspace path, repo root, .test store path, or path inside
+    /// that store. When omitted, uses the server's own fixed store.
+    #[serde(default)]
+    pub workspace: Option<String>,
+    /// Record kind being moved: `spec` or `execution`.
+    pub kind: String,
+    /// Legacy identifier or canonical UUID of the record to move.
+    pub id: String,
+    /// Destination workspace root.
+    pub to_workspace_root: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TestMoveJournalInput {
+    /// Concrete workspace path, repo root, .test store path, or path inside
+    /// that store. When omitted, uses the server's own fixed store.
+    #[serde(default)]
+    pub workspace: Option<String>,
+    /// Record kind being moved: `spec` or `execution`. Must match the kind
+    /// used when the move was planned.
+    pub kind: String,
+    /// Move journal UUID.
+    pub id: String,
+}
+
 // ── Server ───────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
 pub struct TestServer {
     store_root: PathBuf,
-    workspace_slug: String,
     tool_router: ToolRouter<Self>,
 }
 
 impl TestServer {
-    pub fn new(
-        store_root: PathBuf,
-        workspace_slug: String,
-    ) -> Self {
+    pub fn new(store_root: PathBuf) -> Self {
         Self {
             store_root,
-            workspace_slug,
             tool_router: Self::tool_router(),
         }
     }
 
     fn config(&self) -> TestStoreConfig {
-        TestStoreConfig::new(
-            self.store_root.clone(),
-            self.workspace_slug.clone(),
-        )
+        TestStoreConfig::new(self.store_root.clone())
+    }
+
+    fn config_for_optional_workspace(
+        &self,
+        workspace: Option<&str>,
+    ) -> Result<TestStoreConfig, McpError> {
+        match workspace {
+            Some(selector) => self.config_for_workspace(selector),
+            None => Ok(self.config()),
+        }
+    }
+
+    fn parse_record_kind(raw: &str) -> Result<TestRecordKind, McpError> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "spec" => Ok(TestRecordKind::Spec),
+            "execution" => Ok(TestRecordKind::Execution),
+            other => Err(McpError::invalid_params(
+                format!("invalid kind `{other}` (expected spec or execution)"),
+                None,
+            )),
+        }
     }
 
     fn config_for_workspace(
@@ -235,14 +277,9 @@ impl TestServer {
                 Some(workspace_selector),
             )
             .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
-        let store_root = memory_kernel::workspace::resolve_store_root_from(
-            std::path::Path::new(workspace_selector),
-            ".test",
-        );
-        Ok(TestStoreConfig::new(
-            store_root,
-            self.workspace_slug.clone(),
-        ))
+        Ok(TestStoreConfig::for_workspace(std::path::Path::new(
+            workspace_selector,
+        )))
     }
 
     /// Every `.test` store discoverable from the server's workspace root,
@@ -270,10 +307,7 @@ impl TestServer {
             "executions",
         ) {
             if seen.insert(root.clone()) {
-                configs.push(TestStoreConfig::new(
-                    root,
-                    self.workspace_slug.clone(),
-                ));
+                configs.push(TestStoreConfig::new(root));
             }
         }
 
@@ -586,6 +620,112 @@ impl TestServer {
             "executions": executions,
         }))
     }
+
+    #[tool(
+        name = "test_move_preflight",
+        description = "Read-only preflight plan for moving a validation spec or execution to another workspace store."
+    )]
+    pub async fn test_move_preflight(
+        &self,
+        Parameters(input): Parameters<TestMoveInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let kind = Self::parse_record_kind(&input.kind)?;
+        let config = self.config_for_optional_workspace(input.workspace.as_deref())?;
+        let target_workspace_root = PathBuf::from(&input.to_workspace_root);
+        let plan = config
+            .plan_move_preflight(kind, &input.id, &target_workspace_root)
+            .map_err(Self::test_err)?;
+        Self::json_result(&serde_json::json!({
+            "status": if plan.supported() { "ok" } else { "blocked" },
+            "mode": "preflight",
+            "kind": input.kind,
+            "id": input.id,
+            "supported": plan.supported(),
+            "blockers": plan.blockers,
+        }))
+    }
+
+    #[tool(
+        name = "test_move_apply",
+        description = "Execute a supported validation spec/execution move to another workspace store."
+    )]
+    pub async fn test_move_apply(
+        &self,
+        Parameters(input): Parameters<TestMoveInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let kind = Self::parse_record_kind(&input.kind)?;
+        let config = self.config_for_optional_workspace(input.workspace.as_deref())?;
+        let target_workspace_root = PathBuf::from(&input.to_workspace_root);
+        let plan = config
+            .plan_move_preflight(kind, &input.id, &target_workspace_root)
+            .map_err(Self::test_err)?;
+        if !plan.supported() {
+            return Err(McpError::invalid_params(
+                "move preflight blocked; run test_move_preflight for details"
+                    .to_string(),
+                None,
+            ));
+        }
+        let outcome = config
+            .execute_move_with_journal(kind, &plan)
+            .map_err(Self::test_err)?;
+        Self::json_result(&serde_json::json!({
+            "status": "ok",
+            "mode": "apply",
+            "kind": input.kind,
+            "id": input.id,
+            "journal_id": outcome.journal.id,
+            "phase": outcome.journal.phase,
+        }))
+    }
+
+    #[tool(
+        name = "test_move_resume",
+        description = "Resume an interrupted validation spec/execution move from a journal id."
+    )]
+    pub async fn test_move_resume(
+        &self,
+        Parameters(input): Parameters<TestMoveJournalInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let kind = Self::parse_record_kind(&input.kind)?;
+        let config = self.config_for_optional_workspace(input.workspace.as_deref())?;
+        let journal = input.id.parse::<Uuid>().map_err(|error| {
+            McpError::invalid_params(format!("invalid journal id: {error}"), None)
+        })?;
+        let outcome = config
+            .resume_move_with_journal(kind, journal)
+            .map_err(Self::test_err)?;
+        Self::json_result(&serde_json::json!({
+            "status": "ok",
+            "mode": "resume",
+            "journal_id": outcome.journal.id,
+            "phase": outcome.journal.phase,
+        }))
+    }
+
+    #[tool(
+        name = "test_move_rollback",
+        description = "Roll back a validation spec/execution move from a journal id."
+    )]
+    pub async fn test_move_rollback(
+        &self,
+        Parameters(input): Parameters<TestMoveJournalInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let kind = Self::parse_record_kind(&input.kind)?;
+        let config = self.config_for_optional_workspace(input.workspace.as_deref())?;
+        let journal = input.id.parse::<Uuid>().map_err(|error| {
+            McpError::invalid_params(format!("invalid journal id: {error}"), None)
+        })?;
+        let outcome = config
+            .rollback_move_with_journal(kind, journal)
+            .map_err(Self::test_err)?;
+        Self::json_result(&serde_json::json!({
+            "status": "ok",
+            "mode": "rollback",
+            "journal_id": outcome.journal.id,
+            "phase": outcome.journal.phase,
+        }))
+    }
 }
 
 // ── MCP handler trait ─────────────────────────────────────────────────────────
@@ -616,9 +756,8 @@ impl ServerHandler for TestServer {
 
 pub async fn run_mcp_server(
     store_root: PathBuf,
-    workspace_slug: String,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let server = TestServer::new(store_root, workspace_slug);
+    let server = TestServer::new(store_root);
 
     tracing::info!("Starting test-mcp server on stdio (direct store access)");
 
@@ -640,7 +779,7 @@ mod tests {
     async fn record_spec_then_execution_and_query() {
         let dir = tempdir().unwrap();
         let store_root = dir.path().join(".test");
-        let server = TestServer::new(store_root.clone(), "default".to_string());
+        let server = TestServer::new(store_root.clone());
 
         let spec = server
             .test_record_spec(Parameters(RecordSpecInput {
@@ -716,7 +855,7 @@ mod tests {
     async fn invalid_outcome_is_rejected() {
         let dir = tempdir().unwrap();
         let store_root = dir.path().join(".test");
-        let server = TestServer::new(store_root.clone(), "default".to_string());
+        let server = TestServer::new(store_root.clone());
 
         let result = server
             .test_record_execution(Parameters(RecordExecutionInput {
@@ -748,7 +887,7 @@ mod tests {
     async fn missing_spec_reports_not_found() {
         let dir = tempdir().unwrap();
         let store_root = dir.path().join(".test");
-        let server = TestServer::new(store_root, "default".to_string());
+        let server = TestServer::new(store_root);
 
         let result = server
             .test_get_spec(Parameters(GetSpecInput {
@@ -768,7 +907,7 @@ mod tests {
         std::fs::create_dir_all(&nested_workspace).unwrap();
 
         // Server launched with its fixed root at the workspace root.
-        let server = TestServer::new(root_store.clone(), "default".to_string());
+        let server = TestServer::new(root_store.clone());
 
         // Record straight into the root store.
         server
@@ -798,7 +937,9 @@ mod tests {
 
         // Record into a nested descendant store via an explicit workspace,
         // mirroring how a submodule-scoped caller records evidence today.
-        let nested_store = nested_workspace.join(".test");
+        let nested_store = nested_workspace
+            .join(".workflow-tools")
+            .join("test");
         server
             .test_record_execution(Parameters(RecordExecutionInput {
                 workspace: nested_store.display().to_string(),
@@ -824,7 +965,7 @@ mod tests {
             .await
             .expect("record nested execution");
 
-        assert!(nested_workspace.join(".test").is_dir());
+        assert!(nested_store.is_dir());
 
         // Reading with no explicit workspace must aggregate both stores.
         let result = server

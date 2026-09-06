@@ -8,8 +8,11 @@ use serde::{
 };
 
 mod benchmark;
+mod canonical;
 mod error;
 mod interoperability;
+mod migration;
+mod move_domain;
 mod store;
 mod store_index;
 
@@ -19,12 +22,23 @@ pub use benchmark::{
     BudgetTable,
     ingest_criterion_estimates,
 };
+pub use canonical::{
+    CanonicalExecutionEntity,
+    CanonicalSpecEntity,
+    TestRecordKind,
+    canonical_entity_id,
+};
 pub use error::TestError;
 pub use interoperability::{
     IdentifiableArtifact,
     InteroperableArtifact,
     TraceableArtifact,
 };
+pub use migration::{
+    MigrationManifest,
+    MigrationPhase,
+};
+pub use move_domain::TestMoveDomain;
 pub use store::{
     ExecutionQuery,
     TestStoreConfig,

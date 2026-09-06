@@ -33,17 +33,9 @@ pub struct TestCli {
     #[arg(long, global = true, conflicts_with = "json")]
     pub toon: bool,
 
-    /// Explicit test store root (the `.test` directory).
-    #[arg(long, global = true)]
-    pub store_root: Option<PathBuf>,
-
-    /// Workspace/repo root to normalize to the canonical `.test` store.
+    /// Workspace/repo root that owns the canonical `.test` store.
     #[arg(long = "workspace", alias = "workspace-root", global = true)]
     pub workspace_root: Option<PathBuf>,
-
-    /// Workspace slug that scopes test storage.
-    #[arg(long, global = true, default_value = "default")]
-    pub workspace_slug: String,
 
     #[command(subcommand)]
     pub command: TestCommand,
@@ -77,6 +69,8 @@ pub enum TestCommand {
     Logs(LogsArgs),
     /// Run a test/bench command, capturing timing + output into the test and log stores.
     Run(RunArgs),
+    /// Move a validation spec or execution to another workspace store.
+    Move(MoveArgs),
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -196,6 +190,42 @@ pub struct GetArgs {
     /// Identifier to read.
     #[arg(long)]
     pub id: String,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum RecordKindArg {
+    Spec,
+    Execution,
+}
+
+impl From<RecordKindArg> for test_api::TestRecordKind {
+    fn from(value: RecordKindArg) -> Self {
+        match value {
+            RecordKindArg::Spec => test_api::TestRecordKind::Spec,
+            RecordKindArg::Execution => test_api::TestRecordKind::Execution,
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+pub struct MoveArgs {
+    /// Record kind being moved (required in plan/execute mode).
+    #[arg(long, value_enum)]
+    pub kind: Option<RecordKindArg>,
+    /// Legacy identifier or canonical UUID to move (required unless --resume/--rollback is used).
+    pub id: Option<String>,
+    /// Destination workspace root.
+    #[arg(long = "to-workspace-root")]
+    pub to_workspace_root: Option<String>,
+    /// Plan only; do not execute the move.
+    #[arg(long)]
+    pub dry_run: bool,
+    /// Resume an interrupted move from a journal UUID.
+    #[arg(long)]
+    pub resume: Option<String>,
+    /// Roll back a move from a journal UUID.
+    #[arg(long)]
+    pub rollback: Option<String>,
 }
 
 #[derive(Debug, Args)]

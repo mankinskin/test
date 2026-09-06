@@ -16,7 +16,7 @@ fn at(secs: u32) -> chrono::DateTime<chrono::Utc> {
 }
 
 fn config(dir: &TempDir) -> TestStoreConfig {
-    TestStoreConfig::new(dir.path().join(".test"), "default")
+    TestStoreConfig::new(dir.path().join(".test"))
 }
 
 #[test]

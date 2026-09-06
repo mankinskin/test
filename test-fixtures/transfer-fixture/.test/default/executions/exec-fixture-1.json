@@ -1,0 +1,17 @@
+{
+  "id": "exec-fixture-1",
+  "validation_spec_id": "vt-fixture-spec",
+  "outcome": "passed",
+  "executed_at": "2026-06-15T12:00:00Z",
+  "duration_ms": 120,
+  "links": {
+    "ticket_ids": [
+      "ticket-fixture"
+    ]
+  },
+  "provenance": {
+    "domain": "test",
+    "operation": "transfer-fixture",
+    "run_id": "run-fixture-1"
+  }
+}

@@ -17,7 +17,7 @@ fn make_test_server() -> TestServer {
 
     // Keep temp dir alive by leaking it (test cleanup handles this)
     let tmp_path = tmp.keep();
-    TestServer::new(tmp_path.join(".test"), "test-workspace".to_string())
+    TestServer::new(tmp_path.join(".test"))
 }
 
 #[tokio::test]

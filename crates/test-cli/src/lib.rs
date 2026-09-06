@@ -1,5 +1,6 @@
 mod args;
 mod handlers;
+mod move_cmd;
 
 use std::path::PathBuf;
 
@@ -65,23 +66,19 @@ pub fn run(cli: TestCli) -> Result<CliOutput, CliRunError> {
             | TestCommand::Record(_)
             | TestCommand::LogRecord(_)
             | TestCommand::Run(_)
-    ) && cli.store_root.is_none()
-        && cli.workspace_root.is_none()
+    ) && cli.workspace_root.is_none()
     {
         return Err(CliRunError::BadRequest(
-            "entity creation requires explicit --workspace <path> or --store-root <path>"
+            "entity creation requires explicit --workspace <path>"
                 .to_string(),
         ));
     }
 
-    let store_root = workspace::resolve_consumer_store_root(
-        cli.store_root.as_deref(),
-        cli.workspace_root.as_deref(),
-        None,
-        TEST_STORE_DIR,
-    )?;
-    let config =
-        TestStoreConfig::new(store_root.clone(), cli.workspace_slug.clone());
+    let store_root = match cli.workspace_root.as_deref() {
+        Some(workspace_root) => TestStoreConfig::for_workspace(workspace_root).root,
+        None => workspace::resolve_consumer_store_root(None, None, None, TEST_STORE_DIR)?,
+    };
+    let config = TestStoreConfig::new(store_root.clone());
 
     let log_root = match store_root.parent() {
         Some(parent) => parent.join(LOG_STORE_DIR),
@@ -92,7 +89,7 @@ pub fn run(cli: TestCli) -> Result<CliOutput, CliRunError> {
             LOG_STORE_DIR,
         )?,
     };
-    let log_config = LogStoreConfig::new(log_root, cli.workspace_slug.clone());
+    let log_config = LogStoreConfig::new(log_root, "default");
     let spec_root =
         resolve_spec_root(&store_root, cli.workspace_root.as_deref())?;
 
@@ -111,6 +108,7 @@ fn dispatch(
     command: TestCommand,
 ) -> Result<Value, CliRunError> {
     match command {
+        TestCommand::Move(args) => move_cmd::cmd_move(args, config),
         TestCommand::RecordSpec(_)
         | TestCommand::Record(_)
         | TestCommand::LogRecord(_)

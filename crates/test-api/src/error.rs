@@ -47,4 +47,10 @@ pub enum TestError {
         path: PathBuf,
         source: std::io::Error,
     },
+
+    #[error("migration error: {0}")]
+    Migration(String),
+
+    #[error("move error: {0}")]
+    Move(String),
 }

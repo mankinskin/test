@@ -1,0 +1,10 @@
+{
+  "id": "vt-fixture-spec",
+  "title": "Fixture validation spec",
+  "command": "cargo test -p test-api transfer_fixture",
+  "links": {
+    "ticket_ids": [
+      "ticket-fixture"
+    ]
+  }
+}

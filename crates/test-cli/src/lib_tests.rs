@@ -5,8 +5,8 @@ use super::*;
 fn store_args(dir: &TempDir) -> Vec<String> {
     vec![
         "test".to_string(),
-        "--store-root".to_string(),
-        dir.path().join(".test").to_string_lossy().to_string(),
+        "--workspace".to_string(),
+        dir.path().to_string_lossy().to_string(),
     ]
 }
 
@@ -25,7 +25,7 @@ fn parses_record_command() {
         "ticket-1",
     ])
     .expect("parse record");
-    assert_eq!(cli.workspace_slug, "default");
+    assert!(cli.workspace_root.is_none());
     match cli.command {
         TestCommand::Record(args) => {
             assert_eq!(args.id, "exec-1");
@@ -356,3 +356,103 @@ fn run_flags_over_budget_against_spec_threshold() {
     assert_eq!(value["over_budget"], true);
     assert_eq!(value["slow_threshold_ms"], 0);
 }
+
+#[test]
+fn parses_move_command() {
+    let cli = parse_cli_from([
+        "test",
+        "move",
+        "--kind",
+        "spec",
+        "--to-workspace-root",
+        "/tmp/target",
+        "--dry-run",
+        "vt-core",
+    ])
+    .expect("parse move");
+    match cli.command {
+        TestCommand::Move(args) => {
+            assert!(matches!(args.kind, Some(RecordKindArg::Spec)));
+            assert_eq!(args.id.as_deref(), Some("vt-core"));
+            assert_eq!(args.to_workspace_root.as_deref(), Some("/tmp/target"));
+            assert!(args.dry_run);
+        },
+        other => panic!("unexpected command: {other:?}"),
+    }
+}
+
+#[test]
+fn move_dry_run_reports_blocked_plan_for_unmigrated_spec() {
+    let repo = TempDir::new().unwrap();
+    std::process::Command::new("git")
+        .current_dir(repo.path())
+        .args(["init"])
+        .status()
+        .expect("git init");
+    let source_dir = repo.path().join("source");
+    let target_dir = repo.path().join("target");
+    std::fs::create_dir_all(&source_dir).unwrap();
+    std::fs::create_dir_all(target_dir.join(".test")).unwrap();
+
+    let mut record_args = vec![
+        "test".to_string(),
+        "--workspace".to_string(),
+        source_dir.to_string_lossy().to_string(),
+    ];
+    record_args.extend(
+        [
+            "record-spec",
+            "--id",
+            "vt-core",
+            "--title",
+            "Core tests",
+            "--ticket",
+            "ticket-parity",
+        ]
+        .map(String::from),
+    );
+    run(parse_cli_from(record_args).unwrap()).expect("record spec");
+
+    let mut move_args = vec![
+        "test".to_string(),
+        "--workspace".to_string(),
+        source_dir.to_string_lossy().to_string(),
+    ];
+    move_args.extend(
+        [
+            "--json",
+            "move",
+            "--kind",
+            "spec",
+            "--to-workspace-root",
+            target_dir.to_string_lossy().as_ref(),
+            "--dry-run",
+            "vt-core",
+        ]
+        .map(String::from),
+    );
+    let value = run_value(move_args);
+    // The spec has not been migrated into a canonical entity folder yet, so
+    // the move plan is blocked at the source.
+    assert_eq!(value["status"], "blocked");
+    assert_eq!(value["plan"]["supported"], false);
+}
+
+#[test]
+fn move_requires_kind() {
+    let dir = TempDir::new().unwrap();
+    let mut move_args = store_args(&dir);
+    move_args.extend(
+        [
+            "move",
+            "--to-workspace-root",
+            "/tmp/target",
+            "--dry-run",
+            "vt-core",
+        ]
+        .map(String::from),
+    );
+    let result = run(parse_cli_from(move_args).unwrap());
+    assert!(result.is_err());
+}
+

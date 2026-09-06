@@ -35,17 +35,16 @@ use crate::{
 /// Configuration describing where the test-result store lives.
 ///
 /// Mirrors the `.ticket` / `.spec` store conventions: a root directory (the
-/// `.test` directory) plus a workspace slug that scopes storage. Validation
-/// specs and executions are persisted as JSON files:
+/// `.test` directory) selected from its owning workspace. Validation specs
+/// and executions are persisted as JSON files:
 ///
 /// ```text
-/// <root>/<workspace_slug>/specs/<spec_id>.json
-/// <root>/<workspace_slug>/executions/<execution_id>.json
+/// <root>/specs/<spec_id>.json
+/// <root>/executions/<execution_id>.json
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TestStoreConfig {
     pub root: PathBuf,
-    pub workspace_slug: String,
 }
 
 /// Filter for querying validation executions.
@@ -76,14 +75,20 @@ pub struct ExecutionQuery {
 }
 
 impl TestStoreConfig {
-    pub fn new(
-        root: impl Into<PathBuf>,
-        workspace_slug: impl Into<String>,
-    ) -> Self {
+    pub fn new(root: impl Into<PathBuf>) -> Self {
         Self {
             root: root.into(),
-            workspace_slug: workspace_slug.into(),
         }
+    }
+
+    /// Build a store configuration from its concrete owning workspace.
+    pub fn for_workspace(workspace_root: impl AsRef<Path>) -> Self {
+        Self::new(
+            memory_kernel::workspace::resolve_store_root_for_initialization_from(
+                workspace_root.as_ref(),
+                ".test",
+            ),
+        )
     }
 
     // ── Spec persistence ────────────────────────────────────────────────────
@@ -392,21 +397,25 @@ impl TestStoreConfig {
 
     // ── Path helpers ────────────────────────────────────────────────────────
 
-    fn workspace_dir(&self) -> Result<PathBuf, TestError> {
+    pub(crate) fn workspace_dir(&self) -> Result<PathBuf, TestError> {
         if self.root.as_os_str().is_empty() {
             return Err(TestError::EmptyRoot);
         }
-        validate_segment(&self.workspace_slug).map_err(|_| {
-            TestError::InvalidWorkspaceSlug(self.workspace_slug.clone())
-        })?;
-        Ok(self.root.join(&self.workspace_slug))
+        Ok(self.root.clone())
     }
 
-    fn specs_dir(&self) -> Result<PathBuf, TestError> {
+    pub(crate) fn workspace_path(&self) -> PathBuf {
+        memory_kernel::workspace::resolve_workspace_root_from_store_root(
+            &self.root,
+            ".test",
+        )
+    }
+
+    pub(crate) fn specs_dir(&self) -> Result<PathBuf, TestError> {
         Ok(self.workspace_dir()?.join("specs"))
     }
 
-    fn executions_dir(&self) -> Result<PathBuf, TestError> {
+    pub(crate) fn executions_dir(&self) -> Result<PathBuf, TestError> {
         Ok(self.workspace_dir()?.join("executions"))
     }
 
@@ -441,7 +450,7 @@ impl TestStoreConfig {
         Ok(self.benchmarks_dir()?.join(format!("{id}.json")))
     }
 
-    fn read_dir_json<T: DeserializeOwned>(
+    pub(crate) fn read_dir_json<T: DeserializeOwned>(
         &self,
         dir: &Path,
     ) -> Result<Vec<T>, TestError> {
@@ -545,7 +554,7 @@ impl TestStoreConfig {
 
 // ── Free functions ──────────────────────────────────────────────────────────
 
-fn write_json<T: serde::Serialize>(
+pub(crate) fn write_json<T: serde::Serialize>(
     path: &Path,
     value: &T,
 ) -> Result<(), TestError> {
@@ -567,7 +576,7 @@ fn write_json<T: serde::Serialize>(
     })
 }
 
-fn read_json_if_exists<T: DeserializeOwned>(
+pub(crate) fn read_json_if_exists<T: DeserializeOwned>(
     path: &Path
 ) -> Result<Option<T>, TestError> {
     let bytes = match fs::read(path) {
