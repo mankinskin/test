@@ -4,7 +4,7 @@ description: "Use before starting or while waiting on any cargo bench invocation
 
 ## Timeout Discipline for Benchmark Runs
 
-Before starting any `cargo bench` invocation (including `--test` smoke mode), estimate its expected wall time from the scenario count and sample/measurement settings (e.g. `sample_size × measurement_time × scenario_count`), and set a hard timeout at that estimate plus a modest buffer. Use an explicit `timeout` on the run, or background it and poll on a schedule bounded by that same budget. Never wait unboundedly on a benchmark process — see [tool-output.instructions.md](../orchestration/tool-output.instructions.md#long-running-process-ownership) for the general long-running-process rules this specializes.
+Before starting any `cargo bench` invocation (including `--test` smoke mode), estimate its expected wall time from the scenario count and sample/measurement settings (e.g. `sample_size × measurement_time × scenario_count`), and set a hard timeout at that estimate plus a modest buffer. Use an explicit `timeout` on the run, or background it and poll on a schedule bounded by that same budget. Never wait unboundedly on a benchmark process — see [tool-output.instructions.md](../../../../.agents/instructions/workflow/tool-output.instructions.md#long-running-process-ownership) for the general long-running-process rules this specializes.
 
 When a run exceeds its budgeted timeout:
 - Stop waiting on it (kill or detach) instead of continuing to poll indefinitely.
