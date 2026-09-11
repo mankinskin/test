@@ -13,12 +13,12 @@ Use this workflow when a test is failing or behavior regressed unexpectedly.
 - Determine failing crate, test name, and expected behavior from nearby tests.
 
 2. Inspect logs first
-- Read the relevant file in `target/test-logs/`, per [AGENTS.md](../../../../context-engine/AGENTS.md#operating-principles)'s test-log rule.
+- Read the relevant file in `target/test-logs/`, per [AGENTS.md](../../../AGENTS.md#operating-principles)'s test-log rule.
 - Use log-viewer tooling to search for errors and key spans.
 
 3. Gather known context
-- Check existing tickets for similar symptoms or known limitations, per [AGENTS.md](../../../../context-engine/AGENTS.md#discovery-protocol-before-editing)'s known-issues rule.
-- Read crate docs and nearby tests, per [AGENTS.md](../../../../context-engine/AGENTS.md#operating-principles)'s context-gathering rule, before changing code.
+- Check existing tickets for similar symptoms or known limitations, per [AGENTS.md](../../../AGENTS.md#discovery-protocol-before-editing)'s known-issues rule.
+- Read crate docs and nearby tests, per [AGENTS.md](../../../AGENTS.md#operating-principles)'s context-gathering rule, before changing code.
 
 4. Reproduce minimally
 - Run focused test commands for the target crate/test.
