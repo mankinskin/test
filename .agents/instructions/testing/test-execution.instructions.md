@@ -46,3 +46,30 @@ For regression fixes:
 
 - Prefer a failing reproducer assertion before or with the fix.
 - Keep regression coverage focused on the reported failure mode.
+
+## Long-Running E2E / Playwright Suites (Background Execution)
+
+A full Playwright or e2e suite (webServer build + many specs) can run for
+minutes. Never block on it synchronously and never poll it with `sleep` — the
+harness already notifies on async-terminal completion, and a blocking wait
+wastes a turn that could catch a systemic failure early.
+
+- Launch the suite detached with output redirected to a log file (for example
+  `nohup npx playwright test ... > /tmp/pw-run.log 2>&1 &`), then continue
+  working; do not attach to the terminal or wait on it inline.
+- Inspect progress by reading a **bounded tail** of the log file (e.g. `tail -c
+  2000 /tmp/pw-run.log`), not the full file — this keeps each check cheap
+  regardless of how large the suite's output grows.
+- Watch for a **systemic failure signature** in the first few completed
+  specs: the same connection error (`ECONNREFUSED`, `net::ERR_CONNECTION_REFUSED`),
+  the same missing-selector timeout, or a webServer that never became healthy.
+  When every test so far fails with the identical root cause, kill the
+  detached process immediately instead of letting the rest of the suite run —
+  the remaining specs will fail identically and burn the suite's full wall
+  time for zero new information.
+- Confirm the previous attempt's process has actually exited (no stray
+  `cargo`/`playwright` process still holding the package-cache lock) before
+  starting a retry; two overlapping cargo invocations serialize on the lock
+  and look like a hang. This extends the general rule in
+  [tool-output.instructions.md](../../../.agents/instructions/workflow/tool-output.instructions.md)
+  ("Long-Running Process Ownership") to the e2e/Playwright case specifically.
