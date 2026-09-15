@@ -9,6 +9,7 @@ use serde::{
 
 mod benchmark;
 mod canonical;
+mod domain_adoption;
 mod error;
 mod interoperability;
 mod migration;
@@ -27,6 +28,13 @@ pub use canonical::{
     CanonicalSpecEntity,
     TestRecordKind,
     canonical_entity_id,
+};
+pub use domain_adoption::{
+    TEST_DOMAIN_ID,
+    TEST_DOMAIN_SCHEMA_VERSION,
+    kernel_migration_phase,
+    test_domain_current_state_report,
+    test_domain_manifest,
 };
 pub use error::TestError;
 pub use interoperability::{
