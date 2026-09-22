@@ -1,0 +1,6 @@
+id = "8320bfa9-8ceb-4937-8763-7a8f5e273af8"
+created_at = "2026-08-15T18:59:58.921661200+00:00"
+title = "Release E2E fixture"
+state = "planning"
+type = "task"
+component = "test"

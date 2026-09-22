@@ -1,0 +1,6 @@
+id = "46d16755-309b-479f-aab2-624c3fa7ce9b"
+created_at = "2026-06-14T13:48:59.875675200+00:00"
+title = "[ticket-vscode] Fix canonical workspace selection when server exposes path-based or shared workspace ids"
+state = "done"
+type = "tracker-improvement"
+component = "test"

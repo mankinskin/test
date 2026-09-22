@@ -1,0 +1,2 @@
+{"rev":1,"ts":"2026-07-27T20:48:38.784041500+00:00","fields":{"state":"open","title":"Gitignore tools/model-prices/__pycache__ (tracked bytecode drift)","type":"task"}}
+{"rev":2,"ts":"2026-07-27T20:53:42.386769600+00:00","fields":{"state":"cancelled","title":"Gitignore tools/model-prices/__pycache__ (tracked bytecode drift)","type":"task"},"author":"iteration-agent"}

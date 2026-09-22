@@ -1,0 +1,8 @@
+id = "82d6ada4-ac35-45a7-9df6-7b7501d58e70"
+created_at = "2026-06-17T14:03:39.093898900+00:00"
+title = "[architecture][workspace] URN cross-store reference model and resolver"
+state = "done"
+effort = "2400"
+priority = "high"
+type = "tracker-improvement"
+component = "test"

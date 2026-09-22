@@ -1,0 +1,7 @@
+id = "9d3ad49b-e977-4096-8df6-4efc7d2ec639"
+created_at = "2026-08-23T19:33:30.976984700+00:00"
+title = "[ticket-api] Typed Git merge driver for ticket bundles"
+state = "planning"
+parts = [{ id = "b330477e-9067-4687-8dc3-147886588c1e", kind = "requirements", path = "parts/b330477e-9067-4687-8dc3-147886588c1e.md", frozen = false, created_at = "2026-08-23T19:33:39.650524500Z" }]
+type = "feature"
+component = "test"

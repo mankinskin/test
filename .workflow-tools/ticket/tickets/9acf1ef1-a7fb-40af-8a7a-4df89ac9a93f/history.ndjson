@@ -1,0 +1,1 @@
+{"rev":1,"ts":"2026-07-23T13:33:26.167291+00:00","fields":{"effort":"1200","state":"open","title":"[ticket-api] Allow reverse ticket state transitions through schema","type":"tracker-improvement"},"author":"github-copilot"}

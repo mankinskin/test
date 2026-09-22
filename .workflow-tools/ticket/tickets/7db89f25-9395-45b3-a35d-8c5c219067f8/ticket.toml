@@ -1,0 +1,10 @@
+id = "7db89f25-9395-45b3-a35d-8c5c219067f8"
+created_at = "2026-06-06T22:48:54.400663800+00:00"
+title = "[viewer-api] Eliminate per-frame DOM reflow: analytic node rects + skip unchanged LOD writes"
+state = "planning"
+effort = "1200"
+parts = [{ id = "b10380b0-42a5-4d41-a47e-ccb3e1318bf7", kind = "objective", path = "parts/b10380b0-42a5-4d41-a47e-ccb3e1318bf7.md", frozen = true, created_at = "2026-07-31T07:35:07.740495300Z" }, { id = "387ba9c0-e48a-4ced-af05-94b40b938ce9", kind = "requirements", path = "parts/387ba9c0-e48a-4ced-af05-94b40b938ce9.md", frozen = true, created_at = "2026-07-31T07:35:07.740851700Z" }, { id = "5620c68b-2f62-46ce-a498-1d546cab475d", kind = "design", path = "parts/5620c68b-2f62-46ce-a498-1d546cab475d.md", frozen = true, created_at = "2026-07-31T07:35:07.741310200Z" }, { id = "6ec964dd-1109-47dd-896a-201dc1930285", kind = "examples", path = "parts/6ec964dd-1109-47dd-896a-201dc1930285.md", frozen = true, created_at = "2026-07-31T07:35:07.741749800Z" }, { id = "7f86063d-7ce9-4c0e-af84-b8c4d6cf6298", kind = "acceptance_criteria", path = "parts/7f86063d-7ce9-4c0e-af84-b8c4d6cf6298.md", frozen = true, created_at = "2026-07-31T07:35:07.742180300Z" }]
+plan_revision = 1
+status_summary = "Triage 2026-07-31: no implementation work landed; returned to planned for re-scoping."
+type = "tracker-improvement"
+component = "test"

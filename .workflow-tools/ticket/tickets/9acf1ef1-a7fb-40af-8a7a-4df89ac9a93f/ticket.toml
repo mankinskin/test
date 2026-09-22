@@ -1,0 +1,7 @@
+id = "9acf1ef1-a7fb-40af-8a7a-4df89ac9a93f"
+created_at = "2026-06-06T16:23:44.139321600+00:00"
+title = "[ticket-api] Allow reverse ticket state transitions through schema"
+state = "planning"
+effort = "1200"
+type = "tracker-improvement"
+component = "test"

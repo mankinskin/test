@@ -1,0 +1,8 @@
+id = "999d9316-fc79-4bb1-b629-7cba52eced31"
+created_at = "2026-06-17T14:03:23.192602800+00:00"
+title = "[architecture][ticket-api] Adopt neutral shared APIs and alias retirement gate"
+state = "planning"
+effort = "2600"
+priority = "high"
+type = "tracker-improvement"
+component = "test"

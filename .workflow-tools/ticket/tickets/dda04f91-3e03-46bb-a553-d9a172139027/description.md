@@ -1,0 +1,1 @@
+Starting watcher reconcile tracing implementation: instrument reconcile_once and run_watch_loop with lifecycle spans/events and focused validation.

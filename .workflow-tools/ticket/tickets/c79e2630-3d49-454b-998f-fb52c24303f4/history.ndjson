@@ -1,0 +1,5 @@
+{"rev":1,"ts":"2026-05-17T16:50:55.429887+00:00","fields":{"state":"open","title":"[viewer-api] Default visual validation to external fullscreen Chromium","type":"tracker-improvement"}}
+{"rev":2,"ts":"2026-05-17T16:54:58.744347900+00:00","fields":{"state":"planned","title":"[viewer-api] Default visual validation to external fullscreen Chromium","type":"tracker-improvement"}}
+{"rev":3,"ts":"2026-05-17T16:54:58.973473400+00:00","fields":{"state":"in-implementation","title":"[viewer-api] Default visual validation to external fullscreen Chromium","type":"tracker-improvement"}}
+{"rev":4,"ts":"2026-05-17T17:03:49.100387+00:00","fields":{"state":"in-review","title":"[viewer-api] Default visual validation to external fullscreen Chromium","type":"tracker-improvement"}}
+{"rev":5,"ts":"2026-05-17T17:03:49.264439500+00:00","fields":{"state":"done","title":"[viewer-api] Default visual validation to external fullscreen Chromium","type":"tracker-improvement"}}

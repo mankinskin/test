@@ -1,0 +1,2 @@
+{"rev":1,"ts":"2026-06-14T13:48:59.922123600+00:00","fields":{"state":"in-review","title":"[ticket-vscode] Fix canonical workspace selection when server exposes path-based or shared workspace ids","type":"tracker-improvement"}}
+{"rev":2,"ts":"2026-06-30T13:05:46.280226200+00:00","fields":{"state":"done","title":"[ticket-vscode] Fix canonical workspace selection when server exposes path-based or shared workspace ids","type":"tracker-improvement"}}
