@@ -1,0 +1,1 @@
+Adopt the Entity Kernel contracts in test-api. Preserve validation entity schemas and durable migration behavior. Wire test domain manifest/versioning, migration adapter, hooks, workspace capability reporting, and compatibility fixtures against current test migrations and kernel protocol.

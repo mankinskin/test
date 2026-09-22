@@ -1,0 +1,7 @@
+id = "97a9ed0b-4442-4514-8c67-09e3393f79a7"
+created_at = "2026-06-06T16:40:55.544099+00:00"
+title = "[viewer-api] render_frame: compute VP once and collect node rects once per frame"
+state = "done"
+parts = [{ id = "5074dfc4-1d02-4909-b364-8bbae574ad2c", kind = "objective", path = "parts/5074dfc4-1d02-4909-b364-8bbae574ad2c.md", frozen = false, created_at = "2026-07-30T21:05:26.607554200Z" }, { id = "d1bd3369-23ba-413b-9f15-fb07c5c7cb04", kind = "validation", path = "parts/d1bd3369-23ba-413b-9f15-fb07c5c7cb04.md", frozen = false, created_at = "2026-07-30T21:05:26.611135900Z" }]
+type = "tracker-improvement"
+component = "test"

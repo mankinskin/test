@@ -1,0 +1,2 @@
+{"rev":1,"ts":"2026-06-17T15:38:13.489486300+00:00","fields":{"effort":"550","priority":"high","state":"open","title":"[validation] Prompt replay matrix for scaffold skill domain coverage","type":"tracker-improvement"}}
+{"rev":2,"ts":"2026-06-17T15:38:22.064663700+00:00","fields":{"depends_on":["07d4b1b0-bc20-4ba7-98d4-ed09365f0437"],"effort":"550","priority":"high","state":"open","title":"[validation] Prompt replay matrix for scaffold skill domain coverage","type":"tracker-improvement"}}

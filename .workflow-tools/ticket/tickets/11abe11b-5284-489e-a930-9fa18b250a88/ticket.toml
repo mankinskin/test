@@ -1,0 +1,8 @@
+id = "11abe11b-5284-489e-a930-9fa18b250a88"
+created_at = "2026-09-15T15:05:41.332459+00:00"
+title = "Adopt Entity Kernel in test domain"
+state = "done"
+parts = [{ id = "c69fc213-46fa-43b2-9dce-c273c500d7ae", kind = "objective", path = "parts/c69fc213-46fa-43b2-9dce-c273c500d7ae.md", frozen = true, created_at = "2026-09-15T15:18:51.657135100Z" }, { id = "c1c0dcb5-380f-4c2c-9ea0-502cf52d2a13", kind = "requirements", path = "parts/c1c0dcb5-380f-4c2c-9ea0-502cf52d2a13.md", frozen = true, created_at = "2026-09-15T15:18:51.657464600Z" }, { id = "c2f5f5a5-e71f-4d1b-90cb-31eb5569eb74", kind = "design", path = "parts/c2f5f5a5-e71f-4d1b-90cb-31eb5569eb74.md", frozen = true, created_at = "2026-09-15T15:18:51.657870800Z" }, { id = "f44d9713-b163-429b-a287-d831c7b78b12", kind = "examples", path = "parts/f44d9713-b163-429b-a287-d831c7b78b12.md", frozen = true, created_at = "2026-09-15T15:18:51.658234500Z" }, { id = "3d498baa-d6fb-4b19-8028-e2220cb9d88d", kind = "acceptance_criteria", path = "parts/3d498baa-d6fb-4b19-8028-e2220cb9d88d.md", frozen = true, created_at = "2026-09-15T15:18:51.658509200Z" }]
+plan_revision = 1
+type = "task"
+component = "test"

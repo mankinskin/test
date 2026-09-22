@@ -1,0 +1,3 @@
+{"rev":1,"ts":"2026-08-05T13:51:26.736137600+00:00","fields":{"component":"testing","priority":"medium","state":"open","title":"Evaluate automated coverage tooling","type":"task"}}
+{"rev":2,"ts":"2026-08-05T14:15:12.841702100+00:00","fields":{"component":"testing","depends_on":["acebde24-0620-48c0-b9b0-723e2e2dd8a4"],"priority":"medium","state":"open","title":"Evaluate automated coverage tooling","type":"task"}}
+{"rev":3,"ts":"2026-08-05T14:19:25.384263700+00:00","fields":{"component":"testing","depends_on":["acebde24-0620-48c0-b9b0-723e2e2dd8a4"],"effort":"1200","priority":"medium","state":"open","title":"Evaluate automated coverage tooling","type":"task"}}

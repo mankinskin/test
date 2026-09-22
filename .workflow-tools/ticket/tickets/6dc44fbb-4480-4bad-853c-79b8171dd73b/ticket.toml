@@ -1,0 +1,8 @@
+id = "6dc44fbb-4480-4bad-853c-79b8171dd73b"
+created_at = "2026-06-06T16:40:55.626844300+00:00"
+title = "[viewer-api] Anchor SVG edge endpoints to world_to_screen instead of getBoundingClientRect"
+state = "done"
+depends_on = ["97a9ed0b-4442-4514-8c67-09e3393f79a7"]
+parts = [{ id = "34dfd654-2438-454d-9e8f-daaf2a16200f", kind = "objective", path = "parts/34dfd654-2438-454d-9e8f-daaf2a16200f.md", frozen = false, created_at = "2026-07-30T21:05:26.697176300Z" }, { id = "947d32f8-8c60-423e-877e-45b6885ffc09", kind = "validation", path = "parts/947d32f8-8c60-423e-877e-45b6885ffc09.md", frozen = false, created_at = "2026-07-30T21:05:26.701196500Z" }]
+type = "tracker-improvement"
+component = "test"
