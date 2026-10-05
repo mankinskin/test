@@ -140,15 +140,6 @@ pub(crate) fn read_canonical_entity<T: DeserializeOwned>(
     read_json_if_exists(&dir.join(ENTITY_FILE))
 }
 
-/// Whether a canonical entity folder exists for `canonical_id` under `dir`
-/// (the kind's subdir).
-fn canonical_entity_present(
-    dir: &Path,
-    canonical_id: &Uuid,
-) -> bool {
-    dir.join(canonical_id.to_string()).join(ENTITY_FILE).is_file()
-}
-
 fn find_canonical_entity_by_alias<T: DeserializeOwned>(
     dir: &Path,
     alias: &str,
