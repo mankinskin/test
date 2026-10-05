@@ -277,9 +277,39 @@ impl TestServer {
                 Some(workspace_selector),
             )
             .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
-        Ok(TestStoreConfig::for_workspace(std::path::Path::new(
-            workspace_selector,
-        )))
+        let resolution = memory_kernel::workspace::resolve_explicit_store_root_from(
+            std::path::Path::new(workspace_selector),
+            ".test",
+        );
+        Ok(TestStoreConfig::new(resolution.store_root))
+    }
+
+    fn config_for_write_workspace(
+        &self,
+        workspace_selector: &str,
+    ) -> Result<TestStoreConfig, McpError> {
+        let workspace_selector =
+            memory_kernel::workspace::validate_explicit_workspace_selector(
+                Some(workspace_selector),
+            )
+            .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
+        let path = std::path::Path::new(workspace_selector);
+        memory_kernel::workspace::validate_explicit_store_root_for_write(
+            path,
+            ".test",
+        )
+        .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
+        Ok(TestStoreConfig::for_workspace(path))
+    }
+
+    fn config_for_optional_write_workspace(
+        &self,
+        workspace: Option<&str>,
+    ) -> Result<TestStoreConfig, McpError> {
+        match workspace {
+            Some(selector) => self.config_for_write_workspace(selector),
+            None => Ok(self.config()),
+        }
     }
 
     /// Every `.test` store discoverable from the server's workspace root,
@@ -450,7 +480,7 @@ impl TestServer {
             provenance: ValidationProvenance::default(),
         };
         let path = self
-            .config_for_workspace(&input.workspace)?
+            .config_for_write_workspace(&input.workspace)?
             .record_spec(&spec)
             .map_err(Self::test_err)?;
         Self::json_result(&serde_json::json!({
@@ -496,7 +526,7 @@ impl TestServer {
             },
         };
         let path = self
-            .config_for_workspace(&input.workspace)?
+            .config_for_write_workspace(&input.workspace)?
             .record_execution(&execution)
             .map_err(Self::test_err)?;
         Self::json_result(&serde_json::json!({
@@ -654,7 +684,8 @@ impl TestServer {
         Parameters(input): Parameters<TestMoveInput>,
     ) -> Result<CallToolResult, McpError> {
         let kind = Self::parse_record_kind(&input.kind)?;
-        let config = self.config_for_optional_workspace(input.workspace.as_deref())?;
+        let config =
+            self.config_for_optional_write_workspace(input.workspace.as_deref())?;
         let target_workspace_root = PathBuf::from(&input.to_workspace_root);
         let plan = config
             .plan_move_preflight(kind, &input.id, &target_workspace_root)
@@ -688,7 +719,8 @@ impl TestServer {
         Parameters(input): Parameters<TestMoveJournalInput>,
     ) -> Result<CallToolResult, McpError> {
         let kind = Self::parse_record_kind(&input.kind)?;
-        let config = self.config_for_optional_workspace(input.workspace.as_deref())?;
+        let config =
+            self.config_for_optional_write_workspace(input.workspace.as_deref())?;
         let journal = input.id.parse::<Uuid>().map_err(|error| {
             McpError::invalid_params(format!("invalid journal id: {error}"), None)
         })?;
@@ -712,7 +744,8 @@ impl TestServer {
         Parameters(input): Parameters<TestMoveJournalInput>,
     ) -> Result<CallToolResult, McpError> {
         let kind = Self::parse_record_kind(&input.kind)?;
-        let config = self.config_for_optional_workspace(input.workspace.as_deref())?;
+        let config =
+            self.config_for_optional_write_workspace(input.workspace.as_deref())?;
         let journal = input.id.parse::<Uuid>().map_err(|error| {
             McpError::invalid_params(format!("invalid journal id: {error}"), None)
         })?;
@@ -776,9 +809,77 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn record_spec_rejects_explicit_legacy_store_path() {
+        for legacy_exists in [false, true] {
+            let dir = tempdir().unwrap();
+            let legacy_store = dir.path().join(".test");
+            if legacy_exists {
+                std::fs::create_dir_all(&legacy_store).unwrap();
+            }
+            let canonical_store = dir.path().join(".workflow-tools").join("test");
+            let server = TestServer::new(canonical_store.clone());
+
+            let result = server
+                .test_record_spec(Parameters(RecordSpecInput {
+                    workspace: legacy_store.display().to_string(),
+                    id: "vt-legacy-write".to_string(),
+                    title: "Legacy override must be rejected".to_string(),
+                    command: None,
+                    detail: None,
+                    slow_threshold_ms: None,
+                    ticket_ids: vec![],
+                    spec_ids: vec![],
+                    acceptance_criterion_ids: vec![],
+                }))
+                .await;
+
+            assert!(result.is_err());
+            assert_eq!(legacy_store.exists(), legacy_exists);
+            assert!(!canonical_store.exists());
+        }
+    }
+
+    #[tokio::test]
+    async fn get_spec_reads_explicit_legacy_store_when_canonical_is_absent() {
+        let dir = tempdir().unwrap();
+        let legacy_store = dir.path().join(".test");
+        let spec = ValidationSpec {
+            id: "vt-legacy-read".to_string(),
+            title: "Legacy read remains supported".to_string(),
+            command: None,
+            detail: None,
+            slow_threshold_ms: None,
+            links: ValidationLinks {
+                spec_ids: vec![],
+                acceptance_criterion_ids: vec![],
+                ticket_ids: vec![],
+                doc_evidence_ids: vec![],
+                log_ids: vec![],
+            },
+            provenance: ValidationProvenance::default(),
+        };
+        TestStoreConfig::new(legacy_store.clone())
+            .record_spec(&spec)
+            .unwrap();
+        let server = TestServer::new(
+            dir.path().join(".workflow-tools").join("test"),
+        );
+
+        let result = server
+            .test_get_spec(Parameters(GetSpecInput {
+                id: spec.id,
+                workspace: Some(legacy_store.display().to_string()),
+            }))
+            .await
+            .expect("read legacy spec");
+
+        assert!(!result.is_error.unwrap_or(false));
+    }
+
+    #[tokio::test]
     async fn record_spec_then_execution_and_query() {
         let dir = tempdir().unwrap();
-        let store_root = dir.path().join(".test");
+        let store_root = dir.path().join(".workflow-tools").join("test");
         let server = TestServer::new(store_root.clone());
 
         let spec = server
@@ -902,7 +1003,7 @@ mod tests {
     async fn list_executions_aggregates_nested_descendant_store() {
         let dir = tempdir().unwrap();
         let workspace_root = dir.path();
-        let root_store = workspace_root.join(".test");
+        let root_store = workspace_root.join(".workflow-tools").join("test");
         let nested_workspace = workspace_root.join("nested");
         std::fs::create_dir_all(&nested_workspace).unwrap();
 
