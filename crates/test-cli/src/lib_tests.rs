@@ -38,6 +38,54 @@ fn parses_record_command() {
 }
 
 #[test]
+fn record_spec_rejects_ambient_workspace_aliases() {
+    for selector in ["", "  ", "default", ".."] {
+        let mut cli = parse_cli_from([
+            "test",
+            "--workspace",
+            ".",
+            "record-spec",
+            "--id",
+            "vt-selector",
+            "--title",
+            "Selector rejection",
+        ])
+        .unwrap();
+        cli.workspace_root = Some(PathBuf::from(selector));
+
+        match run(cli) {
+            Err(CliRunError::BadRequest(message)) => {
+                assert!(message.contains("requires an explicit workspace path"));
+            }
+            _ => panic!("ambient selector must be rejected before store access"),
+        }
+    }
+}
+
+#[test]
+fn move_rejects_ambient_workspace_aliases_before_store_access() {
+    let dir = TempDir::new().unwrap();
+    let source_root = dir.path().join("not-created-source");
+    let config = TestStoreConfig::new(&source_root);
+
+    for selector in ["", "  ", "default", ".."] {
+        let result = move_cmd::cmd_move(
+            MoveArgs {
+                kind: Some(RecordKindArg::Spec),
+                id: Some("vt-missing".to_string()),
+                to_workspace_root: Some(selector.to_string()),
+                dry_run: true,
+                resume: None,
+                rollback: None,
+            },
+            &config,
+        );
+        assert!(result.is_err(), "selector {selector:?} must be rejected");
+        assert!(!source_root.exists());
+    }
+}
+
+#[test]
 fn json_and_toon_conflict() {
     let result =
         parse_cli_from(["test", "--json", "--toon", "get", "--id", "exec-1"]);
@@ -134,6 +182,19 @@ fn log_record_then_logs_round_trips_through_store() {
         .map(String::from),
     );
     run(parse_cli_from(record_args).unwrap()).expect("record log capture");
+
+    let canonical_capture_path = dir
+        .path()
+        .join(".workflow-tools/log/default/captures/cap-1.json");
+    assert!(canonical_capture_path.is_file());
+    assert!(!dir.path().join(".workflow-tools/.log").exists());
+    let capture = LogStoreConfig::new(
+        dir.path().join(".workflow-tools/log"),
+        "default",
+    )
+    .get_capture("cap-1")
+    .expect("read capture from canonical log store");
+    assert_eq!(capture.validation_execution_id, "exec-1");
 
     let mut logs_args = store_args(&dir);
     logs_args

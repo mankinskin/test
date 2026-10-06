@@ -1,8 +1,6 @@
 //! `test move` — cross-workspace validation-spec/execution move, mirroring
 //! the spec/audit move CLI surfaces.
 
-use std::path::Path;
-
 use serde_json::{
     Value,
     json,
@@ -82,8 +80,13 @@ pub(crate) fn cmd_move(
             )
         })?;
 
-    let plan =
-        config.plan_move_preflight(kind, id, Path::new(to_workspace_root))?;
+    let to_workspace_root =
+        memory_kernel::workspace::normalize_explicit_workspace_selector(
+            Some(to_workspace_root),
+        )
+        .map_err(|error| CliRunError::BadRequest(error.to_string()))?;
+
+    let plan = config.plan_move_preflight(kind, id, &to_workspace_root)?;
 
     if args.dry_run || !plan.supported() {
         return Ok(json!({

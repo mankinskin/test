@@ -272,13 +272,13 @@ impl TestServer {
         &self,
         workspace_selector: &str,
     ) -> Result<TestStoreConfig, McpError> {
-        let workspace_selector =
-            memory_kernel::workspace::validate_explicit_workspace_selector(
+        let workspace =
+            memory_kernel::workspace::normalize_explicit_workspace_selector(
                 Some(workspace_selector),
             )
             .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
         let resolution = memory_kernel::workspace::resolve_explicit_store_root_from(
-            std::path::Path::new(workspace_selector),
+            &workspace,
             ".test",
         );
         Ok(TestStoreConfig::new(resolution.store_root))
@@ -288,18 +288,17 @@ impl TestServer {
         &self,
         workspace_selector: &str,
     ) -> Result<TestStoreConfig, McpError> {
-        let workspace_selector =
-            memory_kernel::workspace::validate_explicit_workspace_selector(
+        let workspace =
+            memory_kernel::workspace::normalize_explicit_workspace_selector(
                 Some(workspace_selector),
             )
             .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
-        let path = std::path::Path::new(workspace_selector);
         memory_kernel::workspace::validate_explicit_store_root_for_write(
-            path,
+            &workspace,
             ".test",
         )
         .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
-        Ok(TestStoreConfig::for_workspace(path))
+        Ok(TestStoreConfig::for_workspace(workspace))
     }
 
     fn config_for_optional_write_workspace(
@@ -659,9 +658,13 @@ impl TestServer {
         &self,
         Parameters(input): Parameters<TestMoveInput>,
     ) -> Result<CallToolResult, McpError> {
+        let target_workspace_root =
+            memory_kernel::workspace::normalize_explicit_workspace_selector(
+                Some(&input.to_workspace_root),
+            )
+            .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
         let kind = Self::parse_record_kind(&input.kind)?;
         let config = self.config_for_optional_workspace(input.workspace.as_deref())?;
-        let target_workspace_root = PathBuf::from(&input.to_workspace_root);
         let plan = config
             .plan_move_preflight(kind, &input.id, &target_workspace_root)
             .map_err(Self::test_err)?;
@@ -683,10 +686,14 @@ impl TestServer {
         &self,
         Parameters(input): Parameters<TestMoveInput>,
     ) -> Result<CallToolResult, McpError> {
+        let target_workspace_root =
+            memory_kernel::workspace::normalize_explicit_workspace_selector(
+                Some(&input.to_workspace_root),
+            )
+            .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
         let kind = Self::parse_record_kind(&input.kind)?;
         let config =
             self.config_for_optional_write_workspace(input.workspace.as_deref())?;
-        let target_workspace_root = PathBuf::from(&input.to_workspace_root);
         let plan = config
             .plan_move_preflight(kind, &input.id, &target_workspace_root)
             .map_err(Self::test_err)?;
@@ -808,6 +815,79 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn explicit_dot_workspace_uses_absolute_canonical_test_store() {
+        let server = TestServer::new(PathBuf::from("."));
+        let config = server
+            .config_for_write_workspace(".")
+            .expect("normalize current workspace");
+        let current_dir = std::env::current_dir().unwrap();
+
+        assert!(config.root.is_absolute());
+        assert_eq!(
+            config.root,
+            memory_kernel::workspace::canonical_store_root(
+                &current_dir,
+                ".test"
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn explicit_dot_workspace_creates_and_reads_back_from_canonical_store() {
+        const CHILD_ENV: &str = "TEST_MCP_DOT_SELECTOR_CHILD";
+        if std::env::var_os(CHILD_ENV).is_none() {
+            let temp = tempdir().unwrap();
+            let parent = temp.path().join("parent");
+            let selected = parent.join("selected");
+            let sibling = parent.join("sibling");
+            std::fs::create_dir_all(&selected).unwrap();
+            std::fs::create_dir_all(&sibling).unwrap();
+
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .arg("explicit_dot_workspace_creates_and_reads_back_from_canonical_store")
+                .arg("--nocapture")
+                .env(CHILD_ENV, "1")
+                .current_dir(&selected)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "child regression failed: {} {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+
+            let selected_store = TestStoreConfig::for_workspace(&selected);
+            let spec = selected_store
+                .get_spec("vt-dot-selector")
+                .expect("read selected workspace validation spec");
+            assert_eq!(spec.title, "Dot selector read-back");
+            assert!(selected_store.root.join("specs/vt-dot-selector.json").is_file());
+            assert!(!parent.join(".workflow-tools/test").exists());
+            assert!(!sibling.join(".workflow-tools/test").exists());
+            return;
+        }
+
+        let selected = std::env::current_dir().unwrap();
+        let server = TestServer::new(selected.parent().unwrap().join("sibling-store"));
+        let result = server
+            .test_record_spec(Parameters(RecordSpecInput {
+                workspace: ".".to_string(),
+                id: "vt-dot-selector".to_string(),
+                title: "Dot selector read-back".to_string(),
+                command: Some("cargo test".to_string()),
+                detail: None,
+                slow_threshold_ms: None,
+                ticket_ids: vec![],
+                spec_ids: vec![],
+                acceptance_criterion_ids: vec![],
+            }))
+            .await
+            .expect("record in selected workspace");
+        assert!(!result.is_error.unwrap_or(false));
+    }
+
     #[tokio::test]
     async fn record_spec_rejects_explicit_legacy_store_path() {
         for legacy_exists in [false, true] {
@@ -836,6 +916,32 @@ mod tests {
             assert!(result.is_err());
             assert_eq!(legacy_store.exists(), legacy_exists);
             assert!(!canonical_store.exists());
+        }
+    }
+
+    #[tokio::test]
+    async fn move_targets_reject_ambient_aliases_before_store_access() {
+        let dir = tempdir().unwrap();
+        let store_root = dir.path().join(".workflow-tools/test");
+        let server = TestServer::new(store_root.clone());
+
+        for selector in ["", "  ", "default", ".."] {
+            let input = TestMoveInput {
+                kind: "spec".to_string(),
+                id: "vt-selector".to_string(),
+                workspace: None,
+                to_workspace_root: selector.to_string(),
+            };
+            assert!(server.test_move_preflight(Parameters(input)).await.is_err());
+
+            let input = TestMoveInput {
+                kind: "spec".to_string(),
+                id: "vt-selector".to_string(),
+                workspace: None,
+                to_workspace_root: selector.to_string(),
+            };
+            assert!(server.test_move_apply(Parameters(input)).await.is_err());
+            assert!(!store_root.exists());
         }
     }
 

@@ -59,19 +59,28 @@ pub enum CliRunError {
     ConsumerWorkspace(#[from] memory_kernel::workspace::ConsumerWorkspaceError),
 }
 
-pub fn run(cli: TestCli) -> Result<CliOutput, CliRunError> {
-    if matches!(
+pub fn run(mut cli: TestCli) -> Result<CliOutput, CliRunError> {
+    let writes_store = matches!(
         cli.command,
         TestCommand::RecordSpec(_)
             | TestCommand::Record(_)
             | TestCommand::LogRecord(_)
             | TestCommand::Run(_)
-    ) && cli.workspace_root.is_none()
-    {
+            | TestCommand::StoreIndex
+    );
+    if writes_store && cli.workspace_root.is_none() {
         return Err(CliRunError::BadRequest(
             "entity creation requires explicit --workspace <path>"
                 .to_string(),
         ));
+    }
+
+    if writes_store {
+        let selector = cli.workspace_root.as_ref().map(|path| path.to_string_lossy());
+        cli.workspace_root = Some(
+            workspace::normalize_explicit_workspace_selector(selector.as_deref())
+                .map_err(|err| CliRunError::BadRequest(err.to_string()))?,
+        );
     }
 
     let store_root = match cli.workspace_root.as_deref() {
@@ -80,11 +89,16 @@ pub fn run(cli: TestCli) -> Result<CliOutput, CliRunError> {
     };
     let config = TestStoreConfig::new(store_root.clone());
 
-    let log_root = match store_root.parent() {
-        Some(parent) => parent.join(LOG_STORE_DIR),
+    let log_root = match cli.workspace_root.as_deref() {
+        Some(workspace_root) => {
+            workspace::resolve_store_root_for_initialization_from(
+                workspace_root,
+                LOG_STORE_DIR,
+            )
+        }
         None => workspace::resolve_consumer_store_root(
             None,
-            cli.workspace_root.as_deref(),
+            None,
             None,
             LOG_STORE_DIR,
         )?,
