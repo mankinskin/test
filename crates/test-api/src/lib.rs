@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 mod benchmark;
 mod canonical;
 mod domain_adoption;
+mod domain_store;
 mod error;
 mod interoperability;
 mod migration;
@@ -19,6 +20,7 @@ pub use domain_adoption::{
     TEST_DOMAIN_ID, TEST_DOMAIN_SCHEMA_VERSION, kernel_migration_phase,
     test_domain_current_state_report, test_domain_manifest,
 };
+pub use domain_store::{TestCreateInput, TestDomainStore, TestEntity, TestEntityId, TestListQuery};
 pub use error::TestError;
 pub use interoperability::{IdentifiableArtifact, InteroperableArtifact, TraceableArtifact};
 pub use migration::{MigrationManifest, MigrationPhase};

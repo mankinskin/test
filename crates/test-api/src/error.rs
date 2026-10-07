@@ -3,6 +3,15 @@ use std::path::PathBuf;
 /// Errors produced by the test-result store.
 #[derive(Debug, thiserror::Error)]
 pub enum TestError {
+    #[error("domain store error: {0}")]
+    DomainStore(#[from] memory_kernel::domain_store::DomainStoreError),
+
+    #[error("workspace error: {0}")]
+    Workspace(#[from] memory_kernel::workspace::ConsumerWorkspaceError),
+
+    #[error("legacy store write override: {0}")]
+    LegacyStoreWrite(#[from] memory_kernel::workspace::LegacyStoreWriteOverride),
+
     #[error("test store root cannot be empty")]
     EmptyRoot,
 

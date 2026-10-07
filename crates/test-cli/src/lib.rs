@@ -8,7 +8,7 @@ use clap::Parser;
 use serde_json::{Value, json};
 
 use log_api::{LogError, LogStoreConfig};
-use memory_kernel::workspace;
+use memory_kernel::{domain_store::StoreAccessMode, workspace};
 use test_api::{TestError, TestStoreConfig};
 
 pub use args::*;
@@ -73,7 +73,17 @@ pub fn run(mut cli: TestCli) -> Result<CliOutput, CliRunError> {
     }
 
     let store_root = match cli.workspace_root.as_deref() {
-        Some(workspace_root) => TestStoreConfig::for_workspace(workspace_root).root,
+        Some(workspace_root) => {
+            TestStoreConfig::resolve_workspace_store(
+                workspace_root,
+                if writes_store {
+                    StoreAccessMode::CreateOrOpen
+                } else {
+                    StoreAccessMode::ReadOnly
+                },
+            )?
+            .store_root
+        }
         None => workspace::resolve_consumer_store_root(None, None, None, TEST_STORE_DIR)?,
     };
     let config = TestStoreConfig::new(store_root.clone());

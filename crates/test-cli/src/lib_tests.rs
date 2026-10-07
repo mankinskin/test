@@ -157,6 +157,97 @@ fn record_then_list_round_trips_through_store() {
 }
 
 #[test]
+fn cli_producer_reads_back_selected_workspace_without_cross_writes() {
+    let parent = TempDir::new().unwrap();
+    let selected = parent.path().join("selected");
+    let sibling = parent.path().join("sibling");
+    std::fs::create_dir_all(&selected).unwrap();
+    std::fs::create_dir_all(&sibling).unwrap();
+
+    let selected_dir = TempDir::new_in(&selected).unwrap();
+    let workspace = selected_dir.path();
+
+    let mut spec_args = vec![
+        "test".to_string(),
+        "--workspace".to_string(),
+        workspace.to_string_lossy().to_string(),
+        "record-spec".to_string(),
+        "--id".to_string(),
+        "vt-cli-domain-store".to_string(),
+        "--title".to_string(),
+        "CLI domain-store fixture".to_string(),
+    ];
+    run(parse_cli_from(spec_args.drain(..)).unwrap()).expect("record CLI spec");
+
+    let execution_args = [
+        "test",
+        "--workspace",
+        &workspace.to_string_lossy(),
+        "record",
+        "--id",
+        "exec-cli-domain-store",
+        "--spec-id",
+        "vt-cli-domain-store",
+        "--outcome",
+        "passed",
+        "--executed-at",
+        "2026-10-07T12:00:00Z",
+        "--ticket",
+        "b36ad4ef-77b9-4225-ab5e-abd0ba13b0b8",
+        "--domain",
+        "test-cli",
+        "--operation",
+        "record",
+        "--run-id",
+        "fixture",
+    ];
+    run(parse_cli_from(execution_args).unwrap()).expect("record CLI execution");
+
+    let spec = run(parse_cli_from([
+        "test",
+        "--workspace",
+        &workspace.to_string_lossy(),
+        "--json",
+        "get-spec",
+        "--id",
+        "vt-cli-domain-store",
+    ])
+    .unwrap())
+    .expect("read CLI spec");
+    let execution = run(parse_cli_from([
+        "test",
+        "--workspace",
+        &workspace.to_string_lossy(),
+        "--json",
+        "get",
+        "--id",
+        "exec-cli-domain-store",
+    ])
+    .unwrap())
+    .expect("read CLI execution");
+
+    assert!(matches!(
+        spec,
+        CliOutput::Machine(value, MachineOutputFormat::Json)
+            if value["title"] == "CLI domain-store fixture"
+    ));
+    assert!(matches!(
+        execution,
+        CliOutput::Machine(value, MachineOutputFormat::Json)
+            if value["validation_spec_id"] == "vt-cli-domain-store"
+    ));
+    let store = workspace.join(".workflow-tools/test");
+    assert!(store.join("specs/vt-cli-domain-store.json").is_file());
+    assert!(
+        store
+            .join("executions/exec-cli-domain-store.json")
+            .is_file()
+    );
+    assert!(!parent.path().join(".workflow-tools/test").exists());
+    assert!(!sibling.join(".workflow-tools/test").exists());
+}
+
+#[test]
 fn log_record_then_logs_round_trips_through_store() {
     let dir = TempDir::new().unwrap();
 

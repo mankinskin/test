@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
+use memory_kernel::domain_store::StoreAccessMode;
 use rmcp::{
     ErrorData as McpError, ServerHandler, ServiceExt,
     handler::server::{tool::ToolRouter, wrapper::Parameters},
@@ -250,7 +251,8 @@ impl TestServer {
         ))
         .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
         let resolution =
-            memory_kernel::workspace::resolve_explicit_store_root_from(&workspace, ".test");
+            TestStoreConfig::resolve_workspace_store(&workspace, StoreAccessMode::ReadOnly)
+                .map_err(Self::test_err)?;
         Ok(TestStoreConfig::new(resolution.store_root))
     }
 
@@ -262,9 +264,10 @@ impl TestServer {
             workspace_selector,
         ))
         .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
-        memory_kernel::workspace::validate_explicit_store_root_for_write(&workspace, ".test")
-            .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
-        Ok(TestStoreConfig::for_workspace(workspace))
+        let resolution =
+            TestStoreConfig::resolve_workspace_store(&workspace, StoreAccessMode::CreateOrOpen)
+                .map_err(Self::test_err)?;
+        Ok(TestStoreConfig::new(resolution.store_root))
     }
 
     fn config_for_optional_write_workspace(
@@ -353,6 +356,8 @@ impl TestServer {
             TestError::EmptyRoot
             | TestError::InvalidId(_)
             | TestError::InvalidWorkspaceSlug(_)
+            | TestError::Workspace(_)
+            | TestError::LegacyStoreWrite(_)
             | TestError::SpecNotFound(_)
             | TestError::ExecutionNotFound(_) => McpError::invalid_params(err.to_string(), None),
             _ => McpError::internal_error(format!("test error: {err}"), None),
@@ -833,6 +838,88 @@ mod tests {
             .await
             .expect("record in selected workspace");
         assert!(!result.is_error.unwrap_or(false));
+    }
+
+    #[tokio::test]
+    async fn mcp_producer_reads_back_selected_workspace_without_cross_writes() {
+        let parent = tempdir().unwrap();
+        let selected = parent.path().join("selected");
+        let sibling = parent.path().join("sibling");
+        std::fs::create_dir_all(&selected).unwrap();
+        std::fs::create_dir_all(&sibling).unwrap();
+        let server = TestServer::new(parent.path().join("ambient/.workflow-tools/test"));
+        let workspace = selected.display().to_string();
+
+        server
+            .test_record_spec(Parameters(RecordSpecInput {
+                workspace: workspace.clone(),
+                id: "vt-mcp-domain-store".to_string(),
+                title: "MCP domain-store fixture".to_string(),
+                command: None,
+                detail: None,
+                slow_threshold_ms: None,
+                ticket_ids: vec![],
+                spec_ids: vec![],
+                acceptance_criterion_ids: vec![],
+            }))
+            .await
+            .expect("record MCP spec");
+        server
+            .test_record_execution(Parameters(RecordExecutionInput {
+                workspace: workspace.clone(),
+                id: "exec-mcp-domain-store".to_string(),
+                validation_spec_id: "vt-mcp-domain-store".to_string(),
+                outcome: "passed".to_string(),
+                executed_at: Some("2026-10-07T12:00:00Z".to_string()),
+                duration_ms: None,
+                throughput: None,
+                detail: None,
+                ticket_ids: vec!["b36ad4ef-77b9-4225-ab5e-abd0ba13b0b8".to_string()],
+                spec_ids: vec![],
+                acceptance_criterion_ids: vec![],
+                doc_evidence_ids: vec![],
+                log_ids: vec![],
+                source_path: None,
+                test_id: None,
+                domain: Some("test-mcp".to_string()),
+                operation: Some("record".to_string()),
+                transport: Some("in-process".to_string()),
+                run_id: Some("fixture".to_string()),
+            }))
+            .await
+            .expect("record MCP execution");
+
+        let spec = server
+            .test_get_spec(Parameters(GetSpecInput {
+                id: "vt-mcp-domain-store".to_string(),
+                workspace: Some(workspace.clone()),
+            }))
+            .await
+            .expect("read MCP spec");
+        let execution = server
+            .test_get_execution(Parameters(GetExecutionInput {
+                id: "exec-mcp-domain-store".to_string(),
+                workspace: Some(workspace),
+            }))
+            .await
+            .expect("read MCP execution");
+
+        let spec: serde_json::Value =
+            serde_json::from_str(&spec.content[0].as_text().unwrap().text).unwrap();
+        let execution: serde_json::Value =
+            serde_json::from_str(&execution.content[0].as_text().unwrap().text).unwrap();
+        assert_eq!(spec["title"], "MCP domain-store fixture");
+        assert_eq!(execution["validation_spec_id"], "vt-mcp-domain-store");
+        let store = selected.join(".workflow-tools/test");
+        assert!(store.join("specs/vt-mcp-domain-store.json").is_file());
+        assert!(
+            store
+                .join("executions/exec-mcp-domain-store.json")
+                .is_file()
+        );
+        assert!(!parent.path().join(".workflow-tools/test").exists());
+        assert!(!sibling.join(".workflow-tools/test").exists());
+        assert!(!parent.path().join("ambient/.workflow-tools/test").exists());
     }
 
     #[tokio::test]
