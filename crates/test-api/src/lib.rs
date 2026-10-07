@@ -1,11 +1,5 @@
-use chrono::{
-    DateTime,
-    Utc,
-};
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 mod benchmark;
 mod canonical;
@@ -17,50 +11,22 @@ mod move_domain;
 mod store;
 mod store_index;
 
-pub use benchmark::{
-    BenchmarkExecution,
-    BenchmarkQuery,
-    BudgetTable,
-    ingest_criterion_estimates,
-};
+pub use benchmark::{BenchmarkExecution, BenchmarkQuery, BudgetTable, ingest_criterion_estimates};
 pub use canonical::{
-    CanonicalExecutionEntity,
-    CanonicalSpecEntity,
-    TestRecordKind,
-    canonical_entity_id,
+    CanonicalExecutionEntity, CanonicalSpecEntity, TestRecordKind, canonical_entity_id,
 };
 pub use domain_adoption::{
-    TEST_DOMAIN_ID,
-    TEST_DOMAIN_SCHEMA_VERSION,
-    kernel_migration_phase,
-    test_domain_current_state_report,
-    test_domain_manifest,
+    TEST_DOMAIN_ID, TEST_DOMAIN_SCHEMA_VERSION, kernel_migration_phase,
+    test_domain_current_state_report, test_domain_manifest,
 };
 pub use error::TestError;
-pub use interoperability::{
-    IdentifiableArtifact,
-    InteroperableArtifact,
-    TraceableArtifact,
-};
-pub use migration::{
-    MigrationManifest,
-    MigrationPhase,
-};
+pub use interoperability::{IdentifiableArtifact, InteroperableArtifact, TraceableArtifact};
+pub use migration::{MigrationManifest, MigrationPhase};
 pub use move_domain::TestMoveDomain;
-pub use store::{
-    ExecutionQuery,
-    TestStoreConfig,
-};
+pub use store::{ExecutionQuery, TestStoreConfig};
 pub use store_index::{
-    BenchmarkGroupSummary,
-    IssueEntry,
-    SlowEntry,
-    TEST_INDEX_FILE_COMMENT,
-    TestStoreIndexArtifacts,
-    TestStoreIndexInput,
-    TestStoreSummary,
-    ValidationGroupSummary,
-    generate_test_store_index,
+    BenchmarkGroupSummary, IssueEntry, SlowEntry, TEST_INDEX_FILE_COMMENT, TestStoreIndexArtifacts,
+    TestStoreIndexInput, TestStoreSummary, ValidationGroupSummary, generate_test_store_index,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -84,40 +50,25 @@ impl ValidationLinks {
             || !self.ticket_ids.is_empty()
     }
 
-    pub fn links_to_spec(
-        &self,
-        spec_id: &str,
-    ) -> bool {
+    pub fn links_to_spec(&self, spec_id: &str) -> bool {
         self.spec_ids.iter().any(|id| id == spec_id)
     }
 
-    pub fn links_to_acceptance(
-        &self,
-        acceptance_criterion_id: &str,
-    ) -> bool {
+    pub fn links_to_acceptance(&self, acceptance_criterion_id: &str) -> bool {
         self.acceptance_criterion_ids
             .iter()
             .any(|id| id == acceptance_criterion_id)
     }
 
-    pub fn links_to_ticket(
-        &self,
-        ticket_id: &str,
-    ) -> bool {
+    pub fn links_to_ticket(&self, ticket_id: &str) -> bool {
         self.ticket_ids.iter().any(|id| id == ticket_id)
     }
 
-    pub fn links_to_doc_evidence(
-        &self,
-        doc_evidence_id: &str,
-    ) -> bool {
+    pub fn links_to_doc_evidence(&self, doc_evidence_id: &str) -> bool {
         self.doc_evidence_ids.iter().any(|id| id == doc_evidence_id)
     }
 
-    pub fn links_to_log(
-        &self,
-        log_id: &str,
-    ) -> bool {
+    pub fn links_to_log(&self, log_id: &str) -> bool {
         self.log_ids.iter().any(|id| id == log_id)
     }
 }
@@ -166,10 +117,7 @@ pub struct ValidationSpec {
 }
 
 impl ValidationSpec {
-    pub fn new(
-        id: impl Into<String>,
-        title: impl Into<String>,
-    ) -> Self {
+    pub fn new(id: impl Into<String>, title: impl Into<String>) -> Self {
         Self {
             id: id.into(),
             title: title.into(),
@@ -181,17 +129,11 @@ impl ValidationSpec {
         }
     }
 
-    pub fn targets_acceptance(
-        &self,
-        acceptance_criterion_id: &str,
-    ) -> bool {
+    pub fn targets_acceptance(&self, acceptance_criterion_id: &str) -> bool {
         self.links.links_to_acceptance(acceptance_criterion_id)
     }
 
-    pub fn is_over_budget(
-        &self,
-        execution: &ValidationExecution,
-    ) -> bool {
+    pub fn is_over_budget(&self, execution: &ValidationExecution) -> bool {
         match (self.slow_threshold_ms, execution.duration_ms) {
             (Some(threshold), Some(duration)) => duration > threshold,
             _ => false,
@@ -199,9 +141,7 @@ impl ValidationSpec {
     }
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum ExecutionSort {
     #[default]
@@ -308,17 +248,11 @@ impl ValidationExecution {
         )
     }
 
-    pub fn references_doc_evidence(
-        &self,
-        doc_evidence_id: &str,
-    ) -> bool {
+    pub fn references_doc_evidence(&self, doc_evidence_id: &str) -> bool {
         self.links.links_to_doc_evidence(doc_evidence_id)
     }
 
-    pub fn references_log(
-        &self,
-        log_id: &str,
-    ) -> bool {
+    pub fn references_log(&self, log_id: &str) -> bool {
         self.links.links_to_log(log_id)
     }
 }
@@ -380,8 +314,7 @@ impl ValidationExecution {
         }
 
         Err(TestError::InteroperabilityContract {
-            record_kind: <Self as InteroperableArtifact>::artifact_class(self)
-                .to_string(),
+            record_kind: <Self as InteroperableArtifact>::artifact_class(self).to_string(),
             detail: gaps.join(", "),
         })
     }

@@ -10,23 +10,14 @@
 
 use std::{
     fs,
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::{Path, PathBuf},
 };
 
 use memory_kernel::ContentKind;
-use test_api::{
-    TestRecordKind,
-    TestStoreConfig,
-};
+use test_api::{TestRecordKind, TestStoreConfig};
 use uuid::Uuid;
 
-fn run_git(
-    repo_root: &Path,
-    args: &[&str],
-) {
+fn run_git(repo_root: &Path, args: &[&str]) {
     let status = std::process::Command::new("git")
         .current_dir(repo_root)
         .args(args)
@@ -35,10 +26,7 @@ fn run_git(
     assert!(status.success(), "git {args:?} failed: {status}");
 }
 
-fn copy_dir_recursive(
-    from: &Path,
-    to: &Path,
-) {
+fn copy_dir_recursive(from: &Path, to: &Path) {
     fs::create_dir_all(to).unwrap();
     for entry in fs::read_dir(from).unwrap() {
         let entry = entry.unwrap();
@@ -76,9 +64,7 @@ fn discovery_tuples(store_root: &Path) -> Vec<(Uuid, PathBuf, String)> {
             if !path.join("entity.json").is_file() {
                 continue;
             }
-            let canonical_path = Path::new(kind.subdir())
-                .join(name)
-                .join("entity.json");
+            let canonical_path = Path::new(kind.subdir()).join(name).join("entity.json");
             let digest = config.canonical_entity_digest(kind, &id).unwrap();
             tuples.push((id, canonical_path, digest));
         }
@@ -103,8 +89,9 @@ fn test_transfer_contract_temporary_root_parity() {
         .expect("test/crates parent")
         .join("test-fixtures")
         .join("transfer-fixture");
-    let fixture_target =
-        workflow_tools_test.join("test-fixtures").join("transfer-fixture");
+    let fixture_target = workflow_tools_test
+        .join("test-fixtures")
+        .join("transfer-fixture");
     copy_dir_recursive(&fixture_source, &fixture_target);
 
     let source_store_root = fixture_target.join(".test");
@@ -115,8 +102,7 @@ fn test_transfer_contract_temporary_root_parity() {
     source_config.migrate_to_canonical().unwrap();
 
     let spec_id = source_config.resolve_canonical_spec_id("vt-fixture-spec");
-    let execution_id =
-        source_config.resolve_canonical_execution_id("exec-fixture-1");
+    let execution_id = source_config.resolve_canonical_execution_id("exec-fixture-1");
     let source_spec_digest = source_config
         .canonical_entity_digest(TestRecordKind::Spec, &spec_id)
         .unwrap();
@@ -172,7 +158,11 @@ fn test_transfer_contract_temporary_root_parity() {
         source_execution_digest,
         "execution digest must survive the move"
     );
-    assert!(!source_config.canonical_spec_exists("vt-fixture-spec").unwrap());
+    assert!(
+        !source_config
+            .canonical_spec_exists("vt-fixture-spec")
+            .unwrap()
+    );
     assert!(
         !source_config
             .canonical_execution_exists("exec-fixture-1")
@@ -205,10 +195,8 @@ fn test_transfer_contract_temporary_root_parity() {
         })
         .expect("submodule discovery finds the canonical test store");
 
-    let canonical_root_a =
-        fs::canonicalize(&test_store_from_root.store_root).unwrap();
-    let canonical_root_b =
-        fs::canonicalize(&test_store_from_submodule.store_root).unwrap();
+    let canonical_root_a = fs::canonicalize(&test_store_from_root.store_root).unwrap();
+    let canonical_root_b = fs::canonicalize(&test_store_from_submodule.store_root).unwrap();
     assert_eq!(
         canonical_root_a, canonical_root_b,
         "root and submodule discovery must resolve to the same physical store_root"
@@ -228,10 +216,7 @@ fn test_transfer_contract_temporary_root_parity() {
         .unwrap();
     assert!(spec_rollback.rolled_back);
     let execution_rollback = source_config
-        .rollback_move_with_journal(
-            TestRecordKind::Execution,
-            execution_outcome.journal.id,
-        )
+        .rollback_move_with_journal(TestRecordKind::Execution, execution_outcome.journal.id)
         .unwrap();
     assert!(execution_rollback.rolled_back);
 
@@ -250,7 +235,9 @@ fn test_transfer_contract_temporary_root_parity() {
         "rollback must restore the exact execution digest"
     );
     assert!(
-        !target_config.canonical_spec_exists("vt-fixture-spec").unwrap(),
+        !target_config
+            .canonical_spec_exists("vt-fixture-spec")
+            .unwrap(),
         "destination spec entity removed after rollback"
     );
     assert!(

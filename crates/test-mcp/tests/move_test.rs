@@ -4,11 +4,7 @@
 use rmcp::handler::server::wrapper::Parameters;
 use serde_json::Value;
 use test_mcp::server::{
-    RecordExecutionInput,
-    RecordSpecInput,
-    TestMoveInput,
-    TestMoveJournalInput,
-    TestServer,
+    RecordExecutionInput, RecordSpecInput, TestMoveInput, TestMoveJournalInput, TestServer,
 };
 
 fn init_git(dir: &std::path::Path) {

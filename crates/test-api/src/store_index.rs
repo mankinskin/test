@@ -10,25 +10,13 @@
 
 use std::collections::BTreeMap;
 
-use chrono::{
-    DateTime,
-    Utc,
-};
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
-use crate::{
-    BenchmarkExecution,
-    ValidationExecution,
-    ValidationOutcome,
-    ValidationSpec,
-};
+use crate::{BenchmarkExecution, ValidationExecution, ValidationOutcome, ValidationSpec};
 
 /// Provenance comment written at the top of the generated markdown.
-pub const TEST_INDEX_FILE_COMMENT: &str =
-    "<!-- test-index:file generated=true -->";
+pub const TEST_INDEX_FILE_COMMENT: &str = "<!-- test-index:file generated=true -->";
 
 /// Inputs for a single store-index generation pass.
 pub struct TestStoreIndexInput<'a> {
@@ -114,15 +102,11 @@ pub struct TestStoreIndexArtifacts {
 }
 
 /// Generate the full test-store index from recorded executions and benchmarks.
-pub fn generate_test_store_index(
-    input: &TestStoreIndexInput<'_>
-) -> TestStoreIndexArtifacts {
+pub fn generate_test_store_index(input: &TestStoreIndexInput<'_>) -> TestStoreIndexArtifacts {
     let summary = aggregate_summary(input);
 
-    let toon_sidecar =
-        toon_format::encode_default(&summary).unwrap_or_else(|_| {
-            serde_json::to_string(&summary).unwrap_or_default()
-        });
+    let toon_sidecar = toon_format::encode_default(&summary)
+        .unwrap_or_else(|_| serde_json::to_string(&summary).unwrap_or_default());
     let digest = fnv1a_hex(toon_sidecar.as_bytes());
     let markdown = render_markdown(&summary, &digest);
 
@@ -138,14 +122,11 @@ fn aggregate_summary(input: &TestStoreIndexInput<'_>) -> TestStoreSummary {
     let slow_thresholds: BTreeMap<&str, u64> = input
         .specs
         .iter()
-        .filter_map(|spec| {
-            spec.slow_threshold_ms.map(|ms| (spec.id.as_str(), ms))
-        })
+        .filter_map(|spec| spec.slow_threshold_ms.map(|ms| (spec.id.as_str(), ms)))
         .collect();
 
     // ── Validation groups ───────────────────────────────────────────────────
-    let mut grouped: BTreeMap<String, Vec<&ValidationExecution>> =
-        BTreeMap::new();
+    let mut grouped: BTreeMap<String, Vec<&ValidationExecution>> = BTreeMap::new();
     for exec in input.executions {
         grouped
             .entry(exec.validation_spec_id.clone())
@@ -155,16 +136,13 @@ fn aggregate_summary(input: &TestStoreIndexInput<'_>) -> TestStoreSummary {
 
     let mut validation_groups = Vec::new();
     for (spec_id, mut execs) in grouped {
-        execs.sort_by(|a, b| {
-            a.executed_at.cmp(&b.executed_at).then(a.id.cmp(&b.id))
-        });
+        execs.sort_by(|a, b| a.executed_at.cmp(&b.executed_at).then(a.id.cmp(&b.id)));
         let latest = execs.last().expect("group is non-empty");
         let passed = execs.iter().filter(|e| e.outcome.is_passed()).count();
         let failed = execs.iter().filter(|e| e.outcome.is_failed()).count();
         let blocked = execs.iter().filter(|e| e.outcome.is_blocked()).count();
 
-        let mut durations: Vec<u64> =
-            execs.iter().filter_map(|e| e.duration_ms).collect();
+        let mut durations: Vec<u64> = execs.iter().filter_map(|e| e.duration_ms).collect();
         durations.sort_unstable();
 
         validation_groups.push(ValidationGroupSummary {
@@ -188,8 +166,7 @@ fn aggregate_summary(input: &TestStoreIndexInput<'_>) -> TestStoreSummary {
     }
 
     // ── Benchmark groups ────────────────────────────────────────────────────
-    let mut bgrouped: BTreeMap<String, Vec<&BenchmarkExecution>> =
-        BTreeMap::new();
+    let mut bgrouped: BTreeMap<String, Vec<&BenchmarkExecution>> = BTreeMap::new();
     for bench in input.benchmarks {
         let key = format!("{}.{}", bench.domain, bench.operation);
         bgrouped.entry(key).or_default().push(bench);
@@ -197,9 +174,7 @@ fn aggregate_summary(input: &TestStoreIndexInput<'_>) -> TestStoreSummary {
 
     let mut benchmark_groups = Vec::new();
     for (key, mut benches) in bgrouped {
-        benches.sort_by(|a, b| {
-            a.executed_at.cmp(&b.executed_at).then(a.id.cmp(&b.id))
-        });
+        benches.sort_by(|a, b| a.executed_at.cmp(&b.executed_at).then(a.id.cmp(&b.id)));
         let latest = benches.last().expect("group is non-empty");
         let over_budget = benches.iter().filter(|b| b.over_budget).count();
 
@@ -297,10 +272,7 @@ fn aggregate_summary(input: &TestStoreIndexInput<'_>) -> TestStoreSummary {
     }
 }
 
-fn render_markdown(
-    summary: &TestStoreSummary,
-    digest: &str,
-) -> String {
+fn render_markdown(summary: &TestStoreSummary, digest: &str) -> String {
     let mut out = String::new();
     out.push_str(TEST_INDEX_FILE_COMMENT);
     out.push('\n');
@@ -320,7 +292,9 @@ fn render_markdown(
     if summary.validation_groups.is_empty() {
         out.push_str("_none_\n\n");
     } else {
-        out.push_str("| spec | total | pass | fail | blocked | latest | provenance | min/median/max ms |\n");
+        out.push_str(
+            "| spec | total | pass | fail | blocked | latest | provenance | min/median/max ms |\n",
+        );
         out.push_str("|---|---|---|---|---|---|---|---|\n");
         for g in &summary.validation_groups {
             out.push_str(&format!(
@@ -344,7 +318,9 @@ fn render_markdown(
     if summary.benchmark_groups.is_empty() {
         out.push_str("_none_\n\n");
     } else {
-        out.push_str("| operation | total | over_budget | last mean ns | min/median/max ns | budget ns |\n");
+        out.push_str(
+            "| operation | total | over_budget | last mean ns | min/median/max ns | budget ns |\n",
+        );
         out.push_str("|---|---|---|---|---|---|\n");
         for g in &summary.benchmark_groups {
             out.push_str(&format!(
@@ -382,11 +358,7 @@ fn render_markdown(
         for entry in &summary.slow {
             out.push_str(&format!(
                 "- [{}] {} ({}): observed {} ns > threshold {} ns\n",
-                entry.kind,
-                entry.id,
-                entry.reference,
-                entry.observed_ns,
-                entry.threshold_ns
+                entry.kind, entry.id, entry.reference, entry.observed_ns, entry.threshold_ns
             ));
         }
     }
@@ -492,8 +464,7 @@ mod tests {
         spec.slow_threshold_ms = Some(15);
         let specs = vec![spec];
 
-        let mut failing =
-            exec("e-fail", "vt-a", ValidationOutcome::Failed, Some(40), 2);
+        let mut failing = exec("e-fail", "vt-a", ValidationOutcome::Failed, Some(40), 2);
         failing.detail = Some("boom".to_string());
         failing.links = ValidationLinks {
             ticket_ids: vec!["t1".to_string()],
@@ -524,8 +495,7 @@ mod tests {
 
     #[test]
     fn surfaces_over_budget_benchmarks_in_issues_and_slow() {
-        let mut bench =
-            BenchmarkExecution::new("b1", "get_by_id", "get", "ticket", at(5));
+        let mut bench = BenchmarkExecution::new("b1", "get_by_id", "get", "ticket", at(5));
         bench.mean_ns = 75_000_000;
         bench.apply_budget(Some(50_000_000));
 

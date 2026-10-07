@@ -1,42 +1,18 @@
 use std::path::PathBuf;
 
-use chrono::{
-    DateTime,
-    Utc,
-};
+use chrono::{DateTime, Utc};
 use rmcp::{
-    ErrorData as McpError,
-    ServerHandler,
-    ServiceExt,
-    handler::server::{
-        tool::ToolRouter,
-        wrapper::Parameters,
-    },
+    ErrorData as McpError, ServerHandler, ServiceExt,
+    handler::server::{tool::ToolRouter, wrapper::Parameters},
     model::*,
-    schemars::{
-        self,
-        JsonSchema,
-    },
-    tool,
-    tool_handler,
-    tool_router,
+    schemars::{self, JsonSchema},
+    tool, tool_handler, tool_router,
     transport::stdio,
 };
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 use test_api::{
-    ExecutionQuery,
-    ExecutionSort,
-    TestError,
-    TestRecordKind,
-    TestStoreConfig,
-    ValidationExecution,
-    ValidationLinks,
-    ValidationOutcome,
-    ValidationProvenance,
-    ValidationSpec,
+    ExecutionQuery, ExecutionSort, TestError, TestRecordKind, TestStoreConfig, ValidationExecution,
+    ValidationLinks, ValidationOutcome, ValidationProvenance, ValidationSpec,
 };
 use uuid::Uuid;
 
@@ -268,19 +244,13 @@ impl TestServer {
         }
     }
 
-    fn config_for_workspace(
-        &self,
-        workspace_selector: &str,
-    ) -> Result<TestStoreConfig, McpError> {
-        let workspace =
-            memory_kernel::workspace::normalize_explicit_workspace_selector(
-                Some(workspace_selector),
-            )
-            .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
-        let resolution = memory_kernel::workspace::resolve_explicit_store_root_from(
-            &workspace,
-            ".test",
-        );
+    fn config_for_workspace(&self, workspace_selector: &str) -> Result<TestStoreConfig, McpError> {
+        let workspace = memory_kernel::workspace::normalize_explicit_workspace_selector(Some(
+            workspace_selector,
+        ))
+        .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
+        let resolution =
+            memory_kernel::workspace::resolve_explicit_store_root_from(&workspace, ".test");
         Ok(TestStoreConfig::new(resolution.store_root))
     }
 
@@ -288,16 +258,12 @@ impl TestServer {
         &self,
         workspace_selector: &str,
     ) -> Result<TestStoreConfig, McpError> {
-        let workspace =
-            memory_kernel::workspace::normalize_explicit_workspace_selector(
-                Some(workspace_selector),
-            )
-            .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
-        memory_kernel::workspace::validate_explicit_store_root_for_write(
-            &workspace,
-            ".test",
-        )
+        let workspace = memory_kernel::workspace::normalize_explicit_workspace_selector(Some(
+            workspace_selector,
+        ))
         .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
+        memory_kernel::workspace::validate_explicit_store_root_for_write(&workspace, ".test")
+            .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
         Ok(TestStoreConfig::for_workspace(workspace))
     }
 
@@ -317,11 +283,10 @@ impl TestServer {
     /// recorded to a nested store (e.g. `memory-api/.test`) via an explicit
     /// `workspace` on write remains discoverable from the aggregated root.
     fn discover_configs(&self) -> Vec<TestStoreConfig> {
-        let workspace_root =
-            memory_kernel::workspace::resolve_workspace_root_from_store_root(
-                &self.store_root,
-                ".test",
-            );
+        let workspace_root = memory_kernel::workspace::resolve_workspace_root_from_store_root(
+            &self.store_root,
+            ".test",
+        );
 
         let mut seen = std::collections::BTreeSet::new();
         let mut configs = Vec::new();
@@ -363,10 +328,8 @@ impl TestServer {
     ) -> Vec<ValidationExecution> {
         match sort {
             ExecutionSort::NewestFirst => {
-                executions.sort_by(|a, b| {
-                    b.executed_at.cmp(&a.executed_at).then(a.id.cmp(&b.id))
-                });
-            },
+                executions.sort_by(|a, b| b.executed_at.cmp(&a.executed_at).then(a.id.cmp(&b.id)));
+            }
             ExecutionSort::SlowestFirst => {
                 executions.sort_by(|a, b| {
                     b.duration_ms
@@ -374,17 +337,14 @@ impl TestServer {
                         .then(b.executed_at.cmp(&a.executed_at))
                         .then(a.id.cmp(&b.id))
                 });
-            },
+            }
         }
         executions
     }
 
-    fn json_result<T: Serialize>(
-        value: &T
-    ) -> Result<CallToolResult, McpError> {
-        let text = serde_json::to_string(value).map_err(|err| {
-            McpError::internal_error(format!("serialization: {err}"), None)
-        })?;
+    fn json_result<T: Serialize>(value: &T) -> Result<CallToolResult, McpError> {
+        let text = serde_json::to_string(value)
+            .map_err(|err| McpError::internal_error(format!("serialization: {err}"), None))?;
         Ok(CallToolResult::success(vec![Content::text(text)]))
     }
 
@@ -394,8 +354,7 @@ impl TestServer {
             | TestError::InvalidId(_)
             | TestError::InvalidWorkspaceSlug(_)
             | TestError::SpecNotFound(_)
-            | TestError::ExecutionNotFound(_) =>
-                McpError::invalid_params(err.to_string(), None),
+            | TestError::ExecutionNotFound(_) => McpError::invalid_params(err.to_string(), None),
             _ => McpError::internal_error(format!("test error: {err}"), None),
         }
     }
@@ -406,9 +365,7 @@ impl TestServer {
             "failed" | "fail" => Ok(ValidationOutcome::Failed),
             "blocked" | "block" => Ok(ValidationOutcome::Blocked),
             other => Err(McpError::invalid_params(
-                format!(
-                    "invalid outcome `{other}` (expected passed, failed, or blocked)"
-                ),
+                format!("invalid outcome `{other}` (expected passed, failed, or blocked)"),
                 None,
             )),
         }
@@ -430,7 +387,7 @@ impl TestServer {
                             None,
                         )
                     })
-            },
+            }
         }
     }
 
@@ -441,9 +398,7 @@ impl TestServer {
                 "newest-first" | "newest" => Ok(ExecutionSort::NewestFirst),
                 "slowest-first" | "slowest" => Ok(ExecutionSort::SlowestFirst),
                 other => Err(McpError::invalid_params(
-                    format!(
-                        "invalid sort `{other}` (expected newest-first or slowest-first)"
-                    ),
+                    format!("invalid sort `{other}` (expected newest-first or slowest-first)"),
                     None,
                 )),
             },
@@ -545,8 +500,7 @@ impl TestServer {
         &self,
         Parameters(input): Parameters<GetSpecInput>,
     ) -> Result<CallToolResult, McpError> {
-        let configs =
-            self.configs_for_optional_workspace(input.workspace.as_deref())?;
+        let configs = self.configs_for_optional_workspace(input.workspace.as_deref())?;
         let mut last_err = TestError::SpecNotFound(input.id.clone());
         for config in &configs {
             match config.get_spec(&input.id) {
@@ -565,8 +519,7 @@ impl TestServer {
         &self,
         Parameters(input): Parameters<GetExecutionInput>,
     ) -> Result<CallToolResult, McpError> {
-        let configs =
-            self.configs_for_optional_workspace(input.workspace.as_deref())?;
+        let configs = self.configs_for_optional_workspace(input.workspace.as_deref())?;
         let mut last_err = TestError::ExecutionNotFound(input.id.clone());
         for config in &configs {
             match config.get_execution(&input.id) {
@@ -585,8 +538,7 @@ impl TestServer {
         &self,
         Parameters(input): Parameters<ListSpecsInput>,
     ) -> Result<CallToolResult, McpError> {
-        let configs =
-            self.configs_for_optional_workspace(input.workspace.as_deref())?;
+        let configs = self.configs_for_optional_workspace(input.workspace.as_deref())?;
         let mut by_id: std::collections::BTreeMap<String, ValidationSpec> =
             std::collections::BTreeMap::new();
         for config in &configs {
@@ -627,14 +579,11 @@ impl TestServer {
             sort,
             limit: None,
         };
-        let configs =
-            self.configs_for_optional_workspace(input.workspace.as_deref())?;
+        let configs = self.configs_for_optional_workspace(input.workspace.as_deref())?;
         let mut seen_ids = std::collections::BTreeSet::new();
         let mut executions = Vec::new();
         for config in &configs {
-            for execution in
-                config.list_executions(&query).map_err(Self::test_err)?
-            {
+            for execution in config.list_executions(&query).map_err(Self::test_err)? {
                 if seen_ids.insert(execution.id.clone()) {
                     executions.push(execution);
                 }
@@ -659,9 +608,9 @@ impl TestServer {
         Parameters(input): Parameters<TestMoveInput>,
     ) -> Result<CallToolResult, McpError> {
         let target_workspace_root =
-            memory_kernel::workspace::normalize_explicit_workspace_selector(
-                Some(&input.to_workspace_root),
-            )
+            memory_kernel::workspace::normalize_explicit_workspace_selector(Some(
+                &input.to_workspace_root,
+            ))
             .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
         let kind = Self::parse_record_kind(&input.kind)?;
         let config = self.config_for_optional_workspace(input.workspace.as_deref())?;
@@ -687,20 +636,18 @@ impl TestServer {
         Parameters(input): Parameters<TestMoveInput>,
     ) -> Result<CallToolResult, McpError> {
         let target_workspace_root =
-            memory_kernel::workspace::normalize_explicit_workspace_selector(
-                Some(&input.to_workspace_root),
-            )
+            memory_kernel::workspace::normalize_explicit_workspace_selector(Some(
+                &input.to_workspace_root,
+            ))
             .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
         let kind = Self::parse_record_kind(&input.kind)?;
-        let config =
-            self.config_for_optional_write_workspace(input.workspace.as_deref())?;
+        let config = self.config_for_optional_write_workspace(input.workspace.as_deref())?;
         let plan = config
             .plan_move_preflight(kind, &input.id, &target_workspace_root)
             .map_err(Self::test_err)?;
         if !plan.supported() {
             return Err(McpError::invalid_params(
-                "move preflight blocked; run test_move_preflight for details"
-                    .to_string(),
+                "move preflight blocked; run test_move_preflight for details".to_string(),
                 None,
             ));
         }
@@ -726,8 +673,7 @@ impl TestServer {
         Parameters(input): Parameters<TestMoveJournalInput>,
     ) -> Result<CallToolResult, McpError> {
         let kind = Self::parse_record_kind(&input.kind)?;
-        let config =
-            self.config_for_optional_write_workspace(input.workspace.as_deref())?;
+        let config = self.config_for_optional_write_workspace(input.workspace.as_deref())?;
         let journal = input.id.parse::<Uuid>().map_err(|error| {
             McpError::invalid_params(format!("invalid journal id: {error}"), None)
         })?;
@@ -751,8 +697,7 @@ impl TestServer {
         Parameters(input): Parameters<TestMoveJournalInput>,
     ) -> Result<CallToolResult, McpError> {
         let kind = Self::parse_record_kind(&input.kind)?;
-        let config =
-            self.config_for_optional_write_workspace(input.workspace.as_deref())?;
+        let config = self.config_for_optional_write_workspace(input.workspace.as_deref())?;
         let journal = input.id.parse::<Uuid>().map_err(|error| {
             McpError::invalid_params(format!("invalid journal id: {error}"), None)
         })?;
@@ -826,10 +771,7 @@ mod tests {
         assert!(config.root.is_absolute());
         assert_eq!(
             config.root,
-            memory_kernel::workspace::canonical_store_root(
-                &current_dir,
-                ".test"
-            )
+            memory_kernel::workspace::canonical_store_root(&current_dir, ".test")
         );
     }
 
@@ -863,7 +805,12 @@ mod tests {
                 .get_spec("vt-dot-selector")
                 .expect("read selected workspace validation spec");
             assert_eq!(spec.title, "Dot selector read-back");
-            assert!(selected_store.root.join("specs/vt-dot-selector.json").is_file());
+            assert!(
+                selected_store
+                    .root
+                    .join("specs/vt-dot-selector.json")
+                    .is_file()
+            );
             assert!(!parent.join(".workflow-tools/test").exists());
             assert!(!sibling.join(".workflow-tools/test").exists());
             return;
@@ -967,9 +914,7 @@ mod tests {
         TestStoreConfig::new(legacy_store.clone())
             .record_spec(&spec)
             .unwrap();
-        let server = TestServer::new(
-            dir.path().join(".workflow-tools").join("test"),
-        );
+        let server = TestServer::new(dir.path().join(".workflow-tools").join("test"));
 
         let result = server
             .test_get_spec(Parameters(GetSpecInput {
@@ -1019,9 +964,7 @@ mod tests {
                 acceptance_criterion_ids: vec![],
                 doc_evidence_ids: vec![],
                 log_ids: vec![],
-                source_path: Some(
-                    "crates/memory-matrix/tests/matrix.rs".to_string(),
-                ),
+                source_path: Some("crates/memory-matrix/tests/matrix.rs".to_string()),
                 test_id: Some("ticket.get".to_string()),
                 domain: Some("ticket".to_string()),
                 operation: Some("get".to_string()),
@@ -1144,9 +1087,7 @@ mod tests {
 
         // Record into a nested descendant store via an explicit workspace,
         // mirroring how a submodule-scoped caller records evidence today.
-        let nested_store = nested_workspace
-            .join(".workflow-tools")
-            .join("test");
+        let nested_store = nested_workspace.join(".workflow-tools").join("test");
         server
             .test_record_execution(Parameters(RecordExecutionInput {
                 workspace: nested_store.display().to_string(),

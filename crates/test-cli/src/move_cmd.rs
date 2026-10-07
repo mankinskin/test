@@ -1,25 +1,13 @@
 //! `test move` — cross-workspace validation-spec/execution move, mirroring
 //! the spec/audit move CLI surfaces.
 
-use serde_json::{
-    Value,
-    json,
-};
-use test_api::{
-    TestRecordKind,
-    TestStoreConfig,
-};
+use serde_json::{Value, json};
+use test_api::{TestRecordKind, TestStoreConfig};
 use uuid::Uuid;
 
-use crate::{
-    CliRunError,
-    MoveArgs,
-};
+use crate::{CliRunError, MoveArgs};
 
-pub(crate) fn cmd_move(
-    args: MoveArgs,
-    config: &TestStoreConfig,
-) -> Result<Value, CliRunError> {
+pub(crate) fn cmd_move(args: MoveArgs, config: &TestStoreConfig) -> Result<Value, CliRunError> {
     if args.resume.is_some() && args.rollback.is_some() {
         return Err(CliRunError::BadRequest(
             "move accepts only one of --resume or --rollback".to_string(),
@@ -29,17 +17,13 @@ pub(crate) fn cmd_move(
     let kind: TestRecordKind = args
         .kind
         .ok_or_else(|| {
-            CliRunError::BadRequest(
-                "move requires --kind <spec|execution>".to_string(),
-            )
+            CliRunError::BadRequest("move requires --kind <spec|execution>".to_string())
         })?
         .into();
 
     if let Some(journal_id) = args.resume.as_deref() {
         let journal_id = journal_id.parse::<Uuid>().map_err(|error| {
-            CliRunError::BadRequest(format!(
-                "invalid --resume journal UUID: {error}"
-            ))
+            CliRunError::BadRequest(format!("invalid --resume journal UUID: {error}"))
         })?;
         let outcome = config.resume_move_with_journal(kind, journal_id)?;
         return Ok(json!({
@@ -53,9 +37,7 @@ pub(crate) fn cmd_move(
 
     if let Some(journal_id) = args.rollback.as_deref() {
         let journal_id = journal_id.parse::<Uuid>().map_err(|error| {
-            CliRunError::BadRequest(format!(
-                "invalid --rollback journal UUID: {error}"
-            ))
+            CliRunError::BadRequest(format!("invalid --rollback journal UUID: {error}"))
         })?;
         let outcome = config.rollback_move_with_journal(kind, journal_id)?;
         return Ok(json!({
@@ -68,23 +50,17 @@ pub(crate) fn cmd_move(
     }
 
     let id = args.id.as_deref().ok_or_else(|| {
+        CliRunError::BadRequest("move requires <id> unless --resume/--rollback is used".to_string())
+    })?;
+    let to_workspace_root = args.to_workspace_root.as_deref().ok_or_else(|| {
         CliRunError::BadRequest(
-            "move requires <id> unless --resume/--rollback is used".to_string(),
+            "move requires --to-workspace-root in plan/execute mode".to_string(),
         )
     })?;
-    let to_workspace_root =
-        args.to_workspace_root.as_deref().ok_or_else(|| {
-            CliRunError::BadRequest(
-                "move requires --to-workspace-root in plan/execute mode"
-                    .to_string(),
-            )
-        })?;
 
     let to_workspace_root =
-        memory_kernel::workspace::normalize_explicit_workspace_selector(
-            Some(to_workspace_root),
-        )
-        .map_err(|error| CliRunError::BadRequest(error.to_string()))?;
+        memory_kernel::workspace::normalize_explicit_workspace_selector(Some(to_workspace_root))
+            .map_err(|error| CliRunError::BadRequest(error.to_string()))?;
 
     let plan = config.plan_move_preflight(kind, id, &to_workspace_root)?;
 
@@ -121,9 +97,7 @@ fn kind_label(kind: TestRecordKind) -> &'static str {
     }
 }
 
-fn move_plan_json(
-    plan: &memory_kernel::storage::move_kernel::MovePlan
-) -> Value {
+fn move_plan_json(plan: &memory_kernel::storage::move_kernel::MovePlan) -> Value {
     json!({
         "supported": plan.supported(),
         "source_workspace_root": disp(&plan.source_workspace_root),
@@ -133,9 +107,7 @@ fn move_plan_json(
     })
 }
 
-fn move_outcome_json(
-    outcome: &memory_kernel::storage::move_kernel::MoveOutcome
-) -> Value {
+fn move_outcome_json(outcome: &memory_kernel::storage::move_kernel::MoveOutcome) -> Value {
     json!({
         "resumed": outcome.resumed,
         "rolled_back": outcome.rolled_back,

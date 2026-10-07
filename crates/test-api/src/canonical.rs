@@ -15,40 +15,23 @@
 use std::{
     fs,
     io::ErrorKind,
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::{Path, PathBuf},
 };
 
-use serde::{
-    Deserialize,
-    Serialize,
-    de::DeserializeOwned,
-};
-use sha2::{
-    Digest,
-    Sha256,
-};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
-    TestError,
-    TestStoreConfig,
-    ValidationExecution,
-    ValidationSpec,
-    store::{
-        read_json_if_exists,
-        write_json,
-    },
+    TestError, TestStoreConfig, ValidationExecution, ValidationSpec,
+    store::{read_json_if_exists, write_json},
 };
 
 /// Fixed UUIDv5 namespace for deriving canonical test-entity identifiers.
 /// Frozen once chosen; never regenerate, or previously derived canonical ids
 /// would no longer match freshly computed ones.
 pub const TEST_DOMAIN_NAMESPACE: Uuid = Uuid::from_bytes([
-    0x8e, 0x2a, 0x4f, 0x61, 0x3d, 0x9c, 0x4b, 0x2e, 0x9a, 0x71, 0x5c, 0x0e,
-    0x4d, 0x6b, 0x2f, 0x33,
+    0x8e, 0x2a, 0x4f, 0x61, 0x3d, 0x9c, 0x4b, 0x2e, 0x9a, 0x71, 0x5c, 0x0e, 0x4d, 0x6b, 0x2f, 0x33,
 ]);
 
 /// The file holding a canonical entity's payload inside its UUID folder.
@@ -86,11 +69,7 @@ impl TestRecordKind {
 /// A legacy identifier that already parses as a UUID keeps that UUID.
 /// Otherwise the UUID is derived via UUIDv5 from [`TEST_DOMAIN_NAMESPACE`]
 /// plus `<canonical-workspace-path>:<kind>:<legacy_id>`.
-pub fn canonical_entity_id(
-    workspace_path: &Path,
-    kind: TestRecordKind,
-    legacy_id: &str,
-) -> Uuid {
+pub fn canonical_entity_id(workspace_path: &Path, kind: TestRecordKind, legacy_id: &str) -> Uuid {
     if let Ok(existing) = Uuid::parse_str(legacy_id) {
         return existing;
     }
@@ -135,7 +114,7 @@ pub(crate) fn write_canonical_entity<T: Serialize>(
 }
 
 pub(crate) fn read_canonical_entity<T: DeserializeOwned>(
-    dir: &Path
+    dir: &Path,
 ) -> Result<Option<T>, TestError> {
     read_json_if_exists(&dir.join(ENTITY_FILE))
 }
@@ -148,10 +127,12 @@ fn find_canonical_entity_by_alias<T: DeserializeOwned>(
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(source) => return Err(TestError::Io {
-            path: dir.to_path_buf(),
-            source,
-        }),
+        Err(source) => {
+            return Err(TestError::Io {
+                path: dir.to_path_buf(),
+                source,
+            });
+        }
     };
 
     for entry in entries {
@@ -175,11 +156,12 @@ pub(crate) fn any_canonical_entity_present(dir: &Path) -> Result<bool, TestError
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(false),
-        Err(source) =>
+        Err(source) => {
             return Err(TestError::Io {
                 path: dir.to_path_buf(),
                 source,
-            }),
+            });
+        }
     };
     for entry in entries {
         let entry = entry.map_err(|source| TestError::Io {
@@ -197,19 +179,13 @@ pub(crate) fn any_canonical_entity_present(dir: &Path) -> Result<bool, TestError
 impl TestStoreConfig {
     /// Deterministically resolve a legacy alias or canonical UUID string to
     /// its canonical spec UUID (no existence check).
-    pub fn resolve_canonical_spec_id(
-        &self,
-        id_or_alias: &str,
-    ) -> Uuid {
+    pub fn resolve_canonical_spec_id(&self, id_or_alias: &str) -> Uuid {
         canonical_entity_id(&self.workspace_path(), TestRecordKind::Spec, id_or_alias)
     }
 
     /// Deterministically resolve a legacy alias or canonical UUID string to
     /// its canonical execution UUID (no existence check).
-    pub fn resolve_canonical_execution_id(
-        &self,
-        id_or_alias: &str,
-    ) -> Uuid {
+    pub fn resolve_canonical_execution_id(&self, id_or_alias: &str) -> Uuid {
         canonical_entity_id(
             &self.workspace_path(),
             TestRecordKind::Execution,
@@ -221,10 +197,7 @@ impl TestStoreConfig {
     ///
     /// A legacy alias is scanned when the path-derived UUID does not exist,
     /// allowing an entity to retain its canonical UUID after a workspace move.
-    pub fn get_canonical_spec(
-        &self,
-        id_or_alias: &str,
-    ) -> Result<CanonicalSpecEntity, TestError> {
+    pub fn get_canonical_spec(&self, id_or_alias: &str) -> Result<CanonicalSpecEntity, TestError> {
         let canonical_id = self.resolve_canonical_spec_id(id_or_alias);
         let dir = self.specs_dir()?.join(canonical_id.to_string());
         match read_canonical_entity(&dir)? {
@@ -258,18 +231,12 @@ impl TestStoreConfig {
     }
 
     /// Whether a canonical spec entity exists for `id_or_alias`.
-    pub fn canonical_spec_exists(
-        &self,
-        id_or_alias: &str,
-    ) -> Result<bool, TestError> {
+    pub fn canonical_spec_exists(&self, id_or_alias: &str) -> Result<bool, TestError> {
         Ok(self.get_canonical_spec(id_or_alias).is_ok())
     }
 
     /// Whether a canonical execution entity exists for `id_or_alias`.
-    pub fn canonical_execution_exists(
-        &self,
-        id_or_alias: &str,
-    ) -> Result<bool, TestError> {
+    pub fn canonical_execution_exists(&self, id_or_alias: &str) -> Result<bool, TestError> {
         Ok(self.get_canonical_execution(id_or_alias).is_ok())
     }
 

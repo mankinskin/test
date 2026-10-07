@@ -1,16 +1,8 @@
 use std::path::PathBuf;
 
-use clap::{
-    Args,
-    Parser,
-    Subcommand,
-    ValueEnum,
-};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use log_api::ValidationLogKind;
-use test_api::{
-    ExecutionSort,
-    ValidationOutcome,
-};
+use test_api::{ExecutionSort, ValidationOutcome};
 
 /// Directory name for the test-result store (sibling of `.ticket` / `.spec`).
 pub(crate) const TEST_STORE_DIR: &str = ".test";
@@ -295,8 +287,7 @@ impl From<LogKindArg> for ValidationLogKind {
             LogKindArg::Stdout => ValidationLogKind::Stdout,
             LogKindArg::Stderr => ValidationLogKind::Stderr,
             LogKindArg::CombinedOutput => ValidationLogKind::CombinedOutput,
-            LogKindArg::StructuredSummary =>
-                ValidationLogKind::StructuredSummary,
+            LogKindArg::StructuredSummary => ValidationLogKind::StructuredSummary,
         }
     }
 }

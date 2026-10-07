@@ -11,30 +11,16 @@
 //! the kind must be supplied again identically on resume/rollback so the
 //! kernel recomputes the same `entity_subdir`.
 
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::{Path, PathBuf};
 
 use memory_kernel::storage::move_kernel::{
-    self,
-    MoveDomain,
-    MoveError,
-    MoveOutcome,
-    MovePlan,
-    MoveReferences,
-    MoveResult,
+    self, MoveDomain, MoveError, MoveOutcome, MovePlan, MoveReferences, MoveResult,
 };
 use uuid::Uuid;
 
 use crate::{
-    TestError,
-    TestStoreConfig,
-    canonical::{
-        ENTITY_FILE,
-        TestRecordKind,
-        canonical_entity_id,
-    },
+    TestError, TestStoreConfig,
+    canonical::{ENTITY_FILE, TestRecordKind, canonical_entity_id},
 };
 
 const TEST_STORE_INDEX_DIR: &str = ".test";
@@ -60,10 +46,7 @@ pub struct TestMoveDomain<'a> {
 }
 
 impl<'a> TestMoveDomain<'a> {
-    pub fn new(
-        config: &'a TestStoreConfig,
-        kind: TestRecordKind,
-    ) -> Self {
+    pub fn new(config: &'a TestStoreConfig, kind: TestRecordKind) -> Self {
         let entity_subdir = kind.subdir().to_string();
         Self {
             config,
@@ -71,12 +54,10 @@ impl<'a> TestMoveDomain<'a> {
         }
     }
 
-    fn entity_dir(
-        &self,
-        store_root: &Path,
-        entity_id: &Uuid,
-    ) -> PathBuf {
-        store_root.join(&self.entity_subdir).join(entity_id.to_string())
+    fn entity_dir(&self, store_root: &Path, entity_id: &Uuid) -> PathBuf {
+        store_root
+            .join(&self.entity_subdir)
+            .join(entity_id.to_string())
     }
 }
 
@@ -93,10 +74,7 @@ impl MoveDomain for TestMoveDomain<'_> {
         self.config.root.clone()
     }
 
-    fn source_entity_path(
-        &self,
-        entity_id: &Uuid,
-    ) -> MoveResult<Option<PathBuf>> {
+    fn source_entity_path(&self, entity_id: &Uuid) -> MoveResult<Option<PathBuf>> {
         let dir = self.entity_dir(&self.config.root, entity_id);
         Ok(if dir.join(ENTITY_FILE).is_file() {
             Some(dir)
@@ -105,32 +83,22 @@ impl MoveDomain for TestMoveDomain<'_> {
         })
     }
 
-    fn related_entities(
-        &self,
-        _entity_id: &Uuid,
-    ) -> MoveResult<MoveReferences> {
+    fn related_entities(&self, _entity_id: &Uuid) -> MoveResult<MoveReferences> {
         Ok(MoveReferences::default())
     }
 
-    fn target_store_present(
-        &self,
-        target_store_root: &Path,
-    ) -> MoveResult<bool> {
+    fn target_store_present(&self, target_store_root: &Path) -> MoveResult<bool> {
         Ok(target_store_root.is_dir())
     }
 
-    fn entity_indexed_in(
-        &self,
-        store_root: &Path,
-        entity_id: &Uuid,
-    ) -> MoveResult<bool> {
-        Ok(self.entity_dir(store_root, entity_id).join(ENTITY_FILE).is_file())
+    fn entity_indexed_in(&self, store_root: &Path, entity_id: &Uuid) -> MoveResult<bool> {
+        Ok(self
+            .entity_dir(store_root, entity_id)
+            .join(ENTITY_FILE)
+            .is_file())
     }
 
-    fn scan_store(
-        &self,
-        _store_root: &Path,
-    ) -> MoveResult<()> {
+    fn scan_store(&self, _store_root: &Path) -> MoveResult<()> {
         Ok(())
     }
 }
@@ -145,8 +113,7 @@ impl TestStoreConfig {
         id_or_alias: &str,
         target_workspace_root: &Path,
     ) -> Result<MovePlan, TestError> {
-        let canonical_id =
-            canonical_entity_id(&self.workspace_path(), kind, id_or_alias);
+        let canonical_id = canonical_entity_id(&self.workspace_path(), kind, id_or_alias);
         let domain = TestMoveDomain::new(self, kind);
         move_kernel::plan_move(&domain, &canonical_id, target_workspace_root)
             .map_err(from_move_error)
@@ -193,16 +160,9 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
-    use crate::{
-        ValidationExecution,
-        ValidationOutcome,
-        ValidationSpec,
-    };
+    use crate::{ValidationExecution, ValidationOutcome, ValidationSpec};
 
-    fn run_git(
-        repo_root: &Path,
-        args: &[&str],
-    ) {
+    fn run_git(repo_root: &Path, args: &[&str]) {
         let status = Command::new("git")
             .current_dir(repo_root)
             .args(args)
@@ -220,10 +180,7 @@ mod tests {
         let source_workspace = repo.join("source");
         let target_workspace = repo.join("target");
         std::fs::create_dir_all(&source_workspace).unwrap();
-        std::fs::create_dir_all(
-            target_workspace.join(".workflow-tools").join("test"),
-        )
-            .unwrap();
+        std::fs::create_dir_all(target_workspace.join(".workflow-tools").join("test")).unwrap();
         (temp, source_workspace, target_workspace)
     }
 
@@ -268,17 +225,12 @@ mod tests {
             canonical_entity_id(Path::new("workspace-b"), TestRecordKind::Spec, "vt-core");
         assert_ne!(a, other_workspace);
 
-        let other_kind =
-            canonical_entity_id(workspace, TestRecordKind::Execution, "vt-core");
+        let other_kind = canonical_entity_id(workspace, TestRecordKind::Execution, "vt-core");
         assert_ne!(a, other_kind);
 
         let already_uuid = Uuid::new_v4();
         assert_eq!(
-            canonical_entity_id(
-                workspace,
-                TestRecordKind::Spec,
-                &already_uuid.to_string()
-            ),
+            canonical_entity_id(workspace, TestRecordKind::Spec, &already_uuid.to_string()),
             already_uuid
         );
     }
@@ -295,10 +247,7 @@ mod tests {
 
         let canonical_id = config.resolve_canonical_spec_id("vt-core");
         let source_digest = config
-            .canonical_entity_digest(
-                TestRecordKind::Spec,
-            &canonical_id,
-            )
+            .canonical_entity_digest(TestRecordKind::Spec, &canonical_id)
             .unwrap();
 
         let outcome = config
@@ -312,19 +261,13 @@ mod tests {
         let target_config = TestStoreConfig::for_workspace(&target_workspace);
         assert!(target_config.canonical_spec_exists("vt-core").unwrap());
         let target_digest = target_config
-            .canonical_entity_digest(
-                TestRecordKind::Spec,
-                &canonical_id,
-            )
+            .canonical_entity_digest(TestRecordKind::Spec, &canonical_id)
             .unwrap();
         assert_eq!(source_digest, target_digest);
 
         // Rollback restores the source and removes the destination.
         let rollback_outcome = config
-            .rollback_move_with_journal(
-                TestRecordKind::Spec,
-                outcome.journal.id,
-            )
+            .rollback_move_with_journal(TestRecordKind::Spec, outcome.journal.id)
             .unwrap();
         assert!(rollback_outcome.rolled_back);
         assert!(config.canonical_spec_exists("vt-core").unwrap());
@@ -337,11 +280,7 @@ mod tests {
         let config = seeded_source_config(&source_workspace);
 
         let mut plan = config
-            .plan_move_preflight(
-                TestRecordKind::Execution,
-                "exec-core-1",
-                &target_workspace,
-            )
+            .plan_move_preflight(TestRecordKind::Execution, "exec-core-1", &target_workspace)
             .unwrap();
         assert!(plan.supported(), "blockers: {:?}", plan.blockers);
 
@@ -352,15 +291,16 @@ mod tests {
 
         // Resuming an already-completed journal is a no-op success.
         let resumed = config
-            .resume_move_with_journal(
-                TestRecordKind::Execution,
-                outcome.journal.id,
-            )
+            .resume_move_with_journal(TestRecordKind::Execution, outcome.journal.id)
             .unwrap();
         assert!(resumed.resumed);
 
         let target_config = TestStoreConfig::for_workspace(&target_workspace);
-        assert!(target_config.canonical_execution_exists("exec-core-1").unwrap());
+        assert!(
+            target_config
+                .canonical_execution_exists("exec-core-1")
+                .unwrap()
+        );
 
         // Re-planning the same (now moved) entity against a fresh target
         // reports it missing at the source.
@@ -368,11 +308,7 @@ mod tests {
         let other_target = temp2.path().join("other-target");
         std::fs::create_dir_all(other_target.join(TEST_STORE_INDEX_DIR)).unwrap();
         plan = config
-            .plan_move_preflight(
-                TestRecordKind::Execution,
-                "exec-core-1",
-                &other_target,
-            )
+            .plan_move_preflight(TestRecordKind::Execution, "exec-core-1", &other_target)
             .unwrap();
         assert!(!plan.supported());
     }

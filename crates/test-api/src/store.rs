@@ -1,35 +1,17 @@
 use std::{
-    collections::{
-        BTreeMap,
-        HashSet,
-    },
+    collections::{BTreeMap, HashSet},
     fs,
     io::ErrorKind,
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::{Path, PathBuf},
 };
 
 use serde::de::DeserializeOwned;
 
 use crate::{
-    ExecutionSort,
-    IdentifiableArtifact,
-    TestError,
-    TraceableArtifact,
-    ValidationExecution,
-    ValidationOutcome,
-    ValidationSpec,
-    benchmark::{
-        BenchmarkExecution,
-        BenchmarkQuery,
-    },
-    store_index::{
-        TestStoreIndexArtifacts,
-        TestStoreIndexInput,
-        generate_test_store_index,
-    },
+    ExecutionSort, IdentifiableArtifact, TestError, TraceableArtifact, ValidationExecution,
+    ValidationOutcome, ValidationSpec,
+    benchmark::{BenchmarkExecution, BenchmarkQuery},
+    store_index::{TestStoreIndexArtifacts, TestStoreIndexInput, generate_test_store_index},
 };
 
 /// Configuration describing where the test-result store lives.
@@ -76,9 +58,7 @@ pub struct ExecutionQuery {
 
 impl TestStoreConfig {
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self {
-            root: root.into(),
-        }
+        Self { root: root.into() }
     }
 
     /// Build a store configuration from its concrete owning workspace.
@@ -94,29 +74,21 @@ impl TestStoreConfig {
     // ── Spec persistence ────────────────────────────────────────────────────
 
     /// Persist (create or overwrite) a validation spec. Returns the file path.
-    pub fn record_spec(
-        &self,
-        spec: &ValidationSpec,
-    ) -> Result<PathBuf, TestError> {
+    pub fn record_spec(&self, spec: &ValidationSpec) -> Result<PathBuf, TestError> {
         let path = self.spec_path(&spec.id)?;
         write_json(&path, spec)?;
         Ok(path)
     }
 
     /// Read a validation spec by id.
-    pub fn get_spec(
-        &self,
-        id: &str,
-    ) -> Result<ValidationSpec, TestError> {
+    pub fn get_spec(&self, id: &str) -> Result<ValidationSpec, TestError> {
         let path = self.spec_path(id)?;
-        read_json_if_exists(&path)?
-            .ok_or_else(|| TestError::SpecNotFound(id.to_string()))
+        read_json_if_exists(&path)?.ok_or_else(|| TestError::SpecNotFound(id.to_string()))
     }
 
     /// List all validation specs, sorted by id.
     pub fn list_specs(&self) -> Result<Vec<ValidationSpec>, TestError> {
-        let mut specs: Vec<ValidationSpec> =
-            self.read_dir_json(&self.specs_dir()?)?;
+        let mut specs: Vec<ValidationSpec> = self.read_dir_json(&self.specs_dir()?)?;
         specs.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(specs)
     }
@@ -124,15 +96,9 @@ impl TestStoreConfig {
     // ── Execution persistence ───────────────────────────────────────────────
 
     /// Persist (create or overwrite) a validation execution. Returns the path.
-    pub fn record_execution(
-        &self,
-        execution: &ValidationExecution,
-    ) -> Result<PathBuf, TestError> {
+    pub fn record_execution(&self, execution: &ValidationExecution) -> Result<PathBuf, TestError> {
         // Compile-time check that ValidationExecution implements TraceableArtifact + IdentifiableArtifact
-        fn assert_interoperable<
-            T: TraceableArtifact + IdentifiableArtifact<Id = str>,
-        >() {
-        }
+        fn assert_interoperable<T: TraceableArtifact + IdentifiableArtifact<Id = str>>() {}
         assert_interoperable::<ValidationExecution>();
 
         execution.validate_interoperability_contract()?;
@@ -143,13 +109,9 @@ impl TestStoreConfig {
     }
 
     /// Read a validation execution by id.
-    pub fn get_execution(
-        &self,
-        id: &str,
-    ) -> Result<ValidationExecution, TestError> {
+    pub fn get_execution(&self, id: &str) -> Result<ValidationExecution, TestError> {
         let path = self.execution_path(id)?;
-        read_json_if_exists(&path)?
-            .ok_or_else(|| TestError::ExecutionNotFound(id.to_string()))
+        read_json_if_exists(&path)?.ok_or_else(|| TestError::ExecutionNotFound(id.to_string()))
     }
 
     /// Query stored executions, sorted by `executed_at` descending (newest first).
@@ -169,10 +131,7 @@ impl TestStoreConfig {
         Ok(executions)
     }
 
-    fn matches_execution_query(
-        exec: &ValidationExecution,
-        query: &ExecutionQuery,
-    ) -> bool {
+    fn matches_execution_query(exec: &ValidationExecution, query: &ExecutionQuery) -> bool {
         Self::matches_execution_identity_filters(exec, query)
             && Self::matches_execution_duration_filters(exec, query)
             && Self::matches_execution_provenance_filters(exec, query)
@@ -206,13 +165,13 @@ impl TestStoreConfig {
     ) -> bool {
         if let Some(min_duration_ms) = query.min_duration_ms {
             match exec.duration_ms {
-                Some(duration) if duration >= min_duration_ms => {},
+                Some(duration) if duration >= min_duration_ms => {}
                 _ => return false,
             }
         }
         if let Some(max_duration_ms) = query.max_duration_ms {
             match exec.duration_ms {
-                Some(duration) if duration <= max_duration_ms => {},
+                Some(duration) if duration <= max_duration_ms => {}
                 _ => return false,
             }
         }
@@ -229,14 +188,12 @@ impl TestStoreConfig {
             }
         }
         if let Some(operation) = &query.operation {
-            if exec.provenance.operation.as_deref() != Some(operation.as_str())
-            {
+            if exec.provenance.operation.as_deref() != Some(operation.as_str()) {
                 return false;
             }
         }
         if let Some(transport) = &query.transport {
-            if exec.provenance.transport.as_deref() != Some(transport.as_str())
-            {
+            if exec.provenance.transport.as_deref() != Some(transport.as_str()) {
                 return false;
             }
         }
@@ -248,16 +205,11 @@ impl TestStoreConfig {
         true
     }
 
-    fn sort_executions(
-        executions: &mut [ValidationExecution],
-        sort: ExecutionSort,
-    ) {
+    fn sort_executions(executions: &mut [ValidationExecution], sort: ExecutionSort) {
         match sort {
             ExecutionSort::NewestFirst => {
-                executions.sort_by(|a, b| {
-                    b.executed_at.cmp(&a.executed_at).then(a.id.cmp(&b.id))
-                });
-            },
+                executions.sort_by(|a, b| b.executed_at.cmp(&a.executed_at).then(a.id.cmp(&b.id)));
+            }
             ExecutionSort::SlowestFirst => {
                 executions.sort_by(|a, b| {
                     b.duration_ms
@@ -265,22 +217,16 @@ impl TestStoreConfig {
                         .then(b.executed_at.cmp(&a.executed_at))
                         .then(a.id.cmp(&b.id))
                 });
-            },
+            }
         }
     }
 
     // ── Benchmark persistence ───────────────────────────────────────────────
 
     /// Persist (create or overwrite) a benchmark execution. Returns the path.
-    pub fn record_benchmark(
-        &self,
-        benchmark: &BenchmarkExecution,
-    ) -> Result<PathBuf, TestError> {
+    pub fn record_benchmark(&self, benchmark: &BenchmarkExecution) -> Result<PathBuf, TestError> {
         // Compile-time check that BenchmarkExecution implements TraceableArtifact + IdentifiableArtifact
-        fn assert_interoperable<
-            T: TraceableArtifact + IdentifiableArtifact<Id = str>,
-        >() {
-        }
+        fn assert_interoperable<T: TraceableArtifact + IdentifiableArtifact<Id = str>>() {}
         assert_interoperable::<BenchmarkExecution>();
 
         benchmark.validate_interoperability_contract()?;
@@ -290,13 +236,9 @@ impl TestStoreConfig {
     }
 
     /// Read a benchmark execution by id.
-    pub fn get_benchmark(
-        &self,
-        id: &str,
-    ) -> Result<BenchmarkExecution, TestError> {
+    pub fn get_benchmark(&self, id: &str) -> Result<BenchmarkExecution, TestError> {
         let path = self.benchmark_path(id)?;
-        read_json_if_exists(&path)?
-            .ok_or_else(|| TestError::BenchmarkNotFound(id.to_string()))
+        read_json_if_exists(&path)?.ok_or_else(|| TestError::BenchmarkNotFound(id.to_string()))
     }
 
     /// Query stored benchmarks, sorted by `executed_at` descending (newest first).
@@ -326,9 +268,7 @@ impl TestStoreConfig {
             true
         });
 
-        benchmarks.sort_by(|a, b| {
-            b.executed_at.cmp(&a.executed_at).then(a.id.cmp(&b.id))
-        });
+        benchmarks.sort_by(|a, b| b.executed_at.cmp(&a.executed_at).then(a.id.cmp(&b.id)));
 
         if let Some(limit) = query.limit {
             benchmarks.truncate(limit);
@@ -340,9 +280,7 @@ impl TestStoreConfig {
 
     /// Build the deterministic store-index artifacts from all recorded
     /// executions, specs (for slow thresholds), and benchmarks.
-    pub fn generate_store_index(
-        &self
-    ) -> Result<TestStoreIndexArtifacts, TestError> {
+    pub fn generate_store_index(&self) -> Result<TestStoreIndexArtifacts, TestError> {
         let executions = self.list_executions(&ExecutionQuery::default())?;
         let specs = self.list_specs()?;
         let benchmarks = self.list_benchmarks(&BenchmarkQuery::default())?;
@@ -367,19 +305,15 @@ impl TestStoreConfig {
         })?;
 
         let toon_path = dir.join("index.toon");
-        fs::write(&toon_path, &artifacts.toon_sidecar).map_err(|source| {
-            TestError::Io {
-                path: toon_path.clone(),
-                source,
-            }
+        fs::write(&toon_path, &artifacts.toon_sidecar).map_err(|source| TestError::Io {
+            path: toon_path.clone(),
+            source,
         })?;
 
         let md_path = dir.join("README.md");
-        fs::write(&md_path, &artifacts.markdown).map_err(|source| {
-            TestError::Io {
-                path: md_path.clone(),
-                source,
-            }
+        fs::write(&md_path, &artifacts.markdown).map_err(|source| TestError::Io {
+            path: md_path.clone(),
+            source,
         })?;
 
         Ok((toon_path, md_path))
@@ -387,9 +321,7 @@ impl TestStoreConfig {
 
     /// Generate and write the store index in one step. Returns the digest and
     /// the two written paths.
-    pub fn regenerate_store_index(
-        &self
-    ) -> Result<(String, PathBuf, PathBuf), TestError> {
+    pub fn regenerate_store_index(&self) -> Result<(String, PathBuf, PathBuf), TestError> {
         let artifacts = self.generate_store_index()?;
         let (toon_path, md_path) = self.write_store_index(&artifacts)?;
         Ok((artifacts.digest, toon_path, md_path))
@@ -405,10 +337,7 @@ impl TestStoreConfig {
     }
 
     pub(crate) fn workspace_path(&self) -> PathBuf {
-        memory_kernel::workspace::resolve_workspace_root_from_store_root(
-            &self.root,
-            ".test",
-        )
+        memory_kernel::workspace::resolve_workspace_root_from_store_root(&self.root, ".test")
     }
 
     pub(crate) fn specs_dir(&self) -> Result<PathBuf, TestError> {
@@ -423,30 +352,18 @@ impl TestStoreConfig {
         Ok(self.workspace_dir()?.join("benchmarks"))
     }
 
-    fn spec_path(
-        &self,
-        id: &str,
-    ) -> Result<PathBuf, TestError> {
-        validate_segment(id)
-            .map_err(|_| TestError::InvalidId(id.to_string()))?;
+    fn spec_path(&self, id: &str) -> Result<PathBuf, TestError> {
+        validate_segment(id).map_err(|_| TestError::InvalidId(id.to_string()))?;
         Ok(self.specs_dir()?.join(format!("{id}.json")))
     }
 
-    fn execution_path(
-        &self,
-        id: &str,
-    ) -> Result<PathBuf, TestError> {
-        validate_segment(id)
-            .map_err(|_| TestError::InvalidId(id.to_string()))?;
+    fn execution_path(&self, id: &str) -> Result<PathBuf, TestError> {
+        validate_segment(id).map_err(|_| TestError::InvalidId(id.to_string()))?;
         Ok(self.executions_dir()?.join(format!("{id}.json")))
     }
 
-    fn benchmark_path(
-        &self,
-        id: &str,
-    ) -> Result<PathBuf, TestError> {
-        validate_segment(id)
-            .map_err(|_| TestError::InvalidId(id.to_string()))?;
+    fn benchmark_path(&self, id: &str) -> Result<PathBuf, TestError> {
+        validate_segment(id).map_err(|_| TestError::InvalidId(id.to_string()))?;
         Ok(self.benchmarks_dir()?.join(format!("{id}.json")))
     }
 
@@ -456,13 +373,13 @@ impl TestStoreConfig {
     ) -> Result<Vec<T>, TestError> {
         let entries = match fs::read_dir(dir) {
             Ok(entries) => entries,
-            Err(err) if err.kind() == ErrorKind::NotFound =>
-                return Ok(Vec::new()),
-            Err(source) =>
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(source) => {
                 return Err(TestError::Io {
                     path: dir.to_path_buf(),
                     source,
-                }),
+                });
+            }
         };
 
         let mut items = Vec::new();
@@ -482,12 +399,8 @@ impl TestStoreConfig {
         Ok(items)
     }
 
-    fn prune_execution_runs(
-        &self,
-        keep_runs: usize,
-    ) -> Result<(), TestError> {
-        let executions: Vec<ValidationExecution> =
-            self.read_dir_json(&self.executions_dir()?)?;
+    fn prune_execution_runs(&self, keep_runs: usize) -> Result<(), TestError> {
+        let executions: Vec<ValidationExecution> = self.read_dir_json(&self.executions_dir()?)?;
 
         let mut newest_by_spec_run: BTreeMap<
             String,
@@ -501,10 +414,10 @@ impl TestStoreConfig {
                 .entry(execution.validation_spec_id.clone())
                 .or_default();
             match newest_by_run.get(run_id) {
-                Some(existing) if *existing >= execution.executed_at => {},
+                Some(existing) if *existing >= execution.executed_at => {}
                 _ => {
                     newest_by_run.insert(run_id.clone(), execution.executed_at);
-                },
+                }
             }
         }
 
@@ -532,19 +445,16 @@ impl TestStoreConfig {
             let Some(run_id) = execution.provenance.run_id.as_ref() else {
                 continue;
             };
-            if !stale_spec_runs.contains(&(
-                execution.validation_spec_id.clone(),
-                run_id.clone(),
-            )) {
+            if !stale_spec_runs.contains(&(execution.validation_spec_id.clone(), run_id.clone())) {
                 continue;
             }
             let path = self.execution_path(&execution.id)?;
             match fs::remove_file(&path) {
-                Ok(()) => {},
-                Err(err) if err.kind() == ErrorKind::NotFound => {},
+                Ok(()) => {}
+                Err(err) if err.kind() == ErrorKind::NotFound => {}
                 Err(source) => {
                     return Err(TestError::Io { path, source });
-                },
+                }
             }
         }
 
@@ -554,21 +464,16 @@ impl TestStoreConfig {
 
 // ── Free functions ──────────────────────────────────────────────────────────
 
-pub(crate) fn write_json<T: serde::Serialize>(
-    path: &Path,
-    value: &T,
-) -> Result<(), TestError> {
+pub(crate) fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), TestError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|source| TestError::Io {
             path: parent.to_path_buf(),
             source,
         })?;
     }
-    let json = serde_json::to_string_pretty(value).map_err(|source| {
-        TestError::Serialize {
-            path: path.to_path_buf(),
-            source,
-        }
+    let json = serde_json::to_string_pretty(value).map_err(|source| TestError::Serialize {
+        path: path.to_path_buf(),
+        source,
     })?;
     fs::write(path, json).map_err(|source| TestError::Io {
         path: path.to_path_buf(),
@@ -577,22 +482,21 @@ pub(crate) fn write_json<T: serde::Serialize>(
 }
 
 pub(crate) fn read_json_if_exists<T: DeserializeOwned>(
-    path: &Path
+    path: &Path,
 ) -> Result<Option<T>, TestError> {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(source) =>
+        Err(source) => {
             return Err(TestError::Io {
                 path: path.to_path_buf(),
                 source,
-            }),
-    };
-    let value = serde_json::from_slice(&bytes).map_err(|source| {
-        TestError::Deserialize {
-            path: path.to_path_buf(),
-            source,
+            });
         }
+    };
+    let value = serde_json::from_slice(&bytes).map_err(|source| TestError::Deserialize {
+        path: path.to_path_buf(),
+        source,
     })?;
     Ok(Some(value))
 }
@@ -603,8 +507,7 @@ fn validate_segment(segment: &str) -> Result<(), ()> {
     if segment.is_empty() || segment == "." || segment == ".." {
         return Err(());
     }
-    if segment.contains('/') || segment.contains('\\') || segment.contains("..")
-    {
+    if segment.contains('/') || segment.contains('\\') || segment.contains("..") {
         return Err(());
     }
     if segment

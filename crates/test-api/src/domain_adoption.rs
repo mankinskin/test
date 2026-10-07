@@ -16,13 +16,13 @@
 use std::collections::BTreeMap;
 
 use memory_kernel::{
+    MigrationDryRunReport, MigrationPhase as KernelMigrationPhase,
     model::{
         domain::{DomainId, DomainSchemaVersion, EntityTypeId, EntityTypeSchemaVersion},
         domain_manifest::{
             DomainManifest, DomainManifestError, EntityTypeMembership, EntityTypeStatus,
         },
     },
-    MigrationDryRunReport, MigrationPhase as KernelMigrationPhase,
 };
 
 use crate::{canonical::TestRecordKind, migration::MigrationPhase as TestMigrationPhase};

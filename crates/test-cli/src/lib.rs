@@ -5,28 +5,15 @@ mod move_cmd;
 use std::path::PathBuf;
 
 use clap::Parser;
-use serde_json::{
-    Value,
-    json,
-};
+use serde_json::{Value, json};
 
-use log_api::{
-    LogError,
-    LogStoreConfig,
-};
+use log_api::{LogError, LogStoreConfig};
 use memory_kernel::workspace;
-use test_api::{
-    TestError,
-    TestStoreConfig,
-};
+use test_api::{TestError, TestStoreConfig};
 
 pub use args::*;
 
-use handlers::{
-    dispatch_read_queries,
-    dispatch_recording,
-    dispatch_reporting,
-};
+use handlers::{dispatch_read_queries, dispatch_recording, dispatch_reporting};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineOutputFormat {
@@ -70,13 +57,15 @@ pub fn run(mut cli: TestCli) -> Result<CliOutput, CliRunError> {
     );
     if writes_store && cli.workspace_root.is_none() {
         return Err(CliRunError::BadRequest(
-            "entity creation requires explicit --workspace <path>"
-                .to_string(),
+            "entity creation requires explicit --workspace <path>".to_string(),
         ));
     }
 
     if writes_store {
-        let selector = cli.workspace_root.as_ref().map(|path| path.to_string_lossy());
+        let selector = cli
+            .workspace_root
+            .as_ref()
+            .map(|path| path.to_string_lossy());
         cli.workspace_root = Some(
             workspace::normalize_explicit_workspace_selector(selector.as_deref())
                 .map_err(|err| CliRunError::BadRequest(err.to_string()))?,
@@ -91,21 +80,12 @@ pub fn run(mut cli: TestCli) -> Result<CliOutput, CliRunError> {
 
     let log_root = match cli.workspace_root.as_deref() {
         Some(workspace_root) => {
-            workspace::resolve_store_root_for_initialization_from(
-                workspace_root,
-                LOG_STORE_DIR,
-            )
+            workspace::resolve_store_root_for_initialization_from(workspace_root, LOG_STORE_DIR)
         }
-        None => workspace::resolve_consumer_store_root(
-            None,
-            None,
-            None,
-            LOG_STORE_DIR,
-        )?,
+        None => workspace::resolve_consumer_store_root(None, None, None, LOG_STORE_DIR)?,
     };
     let log_config = LogStoreConfig::new(log_root, "default");
-    let spec_root =
-        resolve_spec_root(&store_root, cli.workspace_root.as_deref())?;
+    let spec_root = resolve_spec_root(&store_root, cli.workspace_root.as_deref())?;
 
     let payload = dispatch(&config, &log_config, &spec_root, cli.command)?;
 
@@ -126,14 +106,12 @@ fn dispatch(
         TestCommand::RecordSpec(_)
         | TestCommand::Record(_)
         | TestCommand::LogRecord(_)
-        | TestCommand::Run(_) =>
-            dispatch_recording(config, log_config, spec_root, command),
+        | TestCommand::Run(_) => dispatch_recording(config, log_config, spec_root, command),
         TestCommand::GetSpec(_)
         | TestCommand::Get(_)
         | TestCommand::ListSpecs
         | TestCommand::List(_)
-        | TestCommand::Logs(_) =>
-            dispatch_read_queries(config, log_config, command),
+        | TestCommand::Logs(_) => dispatch_read_queries(config, log_config, command),
         TestCommand::StoreIndex
         | TestCommand::Benchmarks(_)
         | TestCommand::Summary
@@ -147,31 +125,20 @@ fn resolve_spec_root(
 ) -> Result<PathBuf, memory_kernel::workspace::ConsumerWorkspaceError> {
     match store_root.parent() {
         Some(parent) => Ok(parent.join(".spec")),
-        None => workspace::resolve_consumer_store_root(
-            None,
-            workspace_root,
-            None,
-            ".spec",
-        ),
+        None => workspace::resolve_consumer_store_root(None, workspace_root, None, ".spec"),
     }
 }
 
 fn render_human(payload: &Value) -> String {
-    serde_json::to_string_pretty(payload)
-        .unwrap_or_else(|_| format!("{payload:?}"))
+    serde_json::to_string_pretty(payload).unwrap_or_else(|_| format!("{payload:?}"))
 }
 
-pub fn error_output(
-    message: &str,
-    format: Option<MachineOutputFormat>,
-) -> String {
+pub fn error_output(message: &str, format: Option<MachineOutputFormat>) -> String {
     let payload = json!({"status": "error", "message": message});
     match format {
         Some(MachineOutputFormat::Json) => payload.to_string(),
-        Some(MachineOutputFormat::Toon) =>
-            toon_format::encode_default(&payload).unwrap_or_else(|_| {
-                format!("status: error\nmessage: {message}")
-            }),
+        Some(MachineOutputFormat::Toon) => toon_format::encode_default(&payload)
+            .unwrap_or_else(|_| format!("status: error\nmessage: {message}")),
         None => message.to_string(),
     }
 }
@@ -181,17 +148,16 @@ pub fn render_machine_output(
     format: MachineOutputFormat,
 ) -> Result<String, String> {
     match format {
-        MachineOutputFormat::Json =>
-            serde_json::to_string_pretty(payload).map_err(|err| err.to_string()),
-        MachineOutputFormat::Toon =>
-            toon_format::encode_default(payload).map_err(|err| err.to_string()),
+        MachineOutputFormat::Json => {
+            serde_json::to_string_pretty(payload).map_err(|err| err.to_string())
+        }
+        MachineOutputFormat::Toon => {
+            toon_format::encode_default(payload).map_err(|err| err.to_string())
+        }
     }
 }
 
-pub fn machine_output_format(
-    as_json: bool,
-    as_toon: bool,
-) -> Option<MachineOutputFormat> {
+pub fn machine_output_format(as_json: bool, as_toon: bool) -> Option<MachineOutputFormat> {
     if as_json {
         Some(MachineOutputFormat::Json)
     } else if as_toon {
@@ -201,8 +167,7 @@ pub fn machine_output_format(
     }
 }
 
-pub fn requested_machine_output_format_from_args() -> Option<MachineOutputFormat>
-{
+pub fn requested_machine_output_format_from_args() -> Option<MachineOutputFormat> {
     machine_output_format(
         std::env::args().any(|arg| arg == "--json"),
         std::env::args().any(|arg| arg == "--toon"),

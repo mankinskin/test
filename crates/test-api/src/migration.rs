@@ -16,34 +16,17 @@
 //! [`TestStoreConfig::rollback_migration`], which removes only the canonical
 //! folders it created — legacy JSON is never deleted by migration.
 
-use std::{
-    collections::BTreeMap,
-    fs,
-    io::ErrorKind,
-    path::PathBuf,
-};
+use std::{collections::BTreeMap, fs, io::ErrorKind, path::PathBuf};
 
-use chrono::{
-    DateTime,
-    Utc,
-};
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    ExecutionQuery,
-    TestError,
-    TestStoreConfig,
+    ExecutionQuery, TestError, TestStoreConfig,
     canonical::{
-        CanonicalExecutionEntity,
-        CanonicalSpecEntity,
-        TestRecordKind,
-        any_canonical_entity_present,
-        canonical_entity_id,
-        write_canonical_entity,
+        CanonicalExecutionEntity, CanonicalSpecEntity, TestRecordKind,
+        any_canonical_entity_present, canonical_entity_id, write_canonical_entity,
     },
     store::read_json_if_exists,
 };
@@ -86,16 +69,11 @@ impl TestStoreConfig {
     }
 
     /// Read the migration manifest, if one has been written.
-    pub fn read_migration_manifest(
-        &self
-    ) -> Result<Option<MigrationManifest>, TestError> {
+    pub fn read_migration_manifest(&self) -> Result<Option<MigrationManifest>, TestError> {
         read_json_if_exists(&self.migration_manifest_path()?)
     }
 
-    fn write_migration_manifest(
-        &self,
-        manifest: &MigrationManifest,
-    ) -> Result<(), TestError> {
+    fn write_migration_manifest(&self, manifest: &MigrationManifest) -> Result<(), TestError> {
         crate::store::write_json(&self.migration_manifest_path()?, manifest)
     }
 
@@ -103,10 +81,12 @@ impl TestStoreConfig {
         let entries = match fs::read_dir(&self.root) {
             Ok(entries) => entries,
             Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(source) => return Err(TestError::Io {
-                path: self.root.clone(),
-                source,
-            }),
+            Err(source) => {
+                return Err(TestError::Io {
+                    path: self.root.clone(),
+                    source,
+                });
+            }
         };
 
         let mut candidates = entries
@@ -174,11 +154,7 @@ impl TestStoreConfig {
             .map(|spec| {
                 (
                     spec.id.clone(),
-                    canonical_entity_id(
-                        &self.workspace_path(),
-                        TestRecordKind::Spec,
-                        &spec.id,
-                    ),
+                    canonical_entity_id(&self.workspace_path(), TestRecordKind::Spec, &spec.id),
                 )
             })
             .collect();
@@ -261,17 +237,13 @@ impl TestStoreConfig {
                 continue;
             }
             let dest_subdir = self.workspace_dir()?.join(kind.subdir());
-            fs::create_dir_all(&dest_subdir).map_err(|source| {
-                TestError::Io {
-                    path: dest_subdir.clone(),
-                    source,
-                }
+            fs::create_dir_all(&dest_subdir).map_err(|source| TestError::Io {
+                path: dest_subdir.clone(),
+                source,
             })?;
-            let entries = fs::read_dir(&staged_subdir).map_err(|source| {
-                TestError::Io {
-                    path: staged_subdir.clone(),
-                    source,
-                }
+            let entries = fs::read_dir(&staged_subdir).map_err(|source| TestError::Io {
+                path: staged_subdir.clone(),
+                source,
             })?;
             for entry in entries {
                 let entry = entry.map_err(|source| TestError::Io {
@@ -280,18 +252,14 @@ impl TestStoreConfig {
                 })?;
                 let dest = dest_subdir.join(entry.file_name());
                 if dest.exists() {
-                    fs::remove_dir_all(&dest).map_err(|source| {
-                        TestError::Io {
-                            path: dest.clone(),
-                            source,
-                        }
-                    })?;
-                }
-                fs::rename(entry.path(), &dest).map_err(|source| {
-                    TestError::Io {
+                    fs::remove_dir_all(&dest).map_err(|source| TestError::Io {
                         path: dest.clone(),
                         source,
-                    }
+                    })?;
+                }
+                fs::rename(entry.path(), &dest).map_err(|source| TestError::Io {
+                    path: dest.clone(),
+                    source,
                 })?;
             }
         }
@@ -313,13 +281,12 @@ impl TestStoreConfig {
     /// publishes from staging.
     pub fn migrate_to_canonical(&self) -> Result<MigrationManifest, TestError> {
         match self.read_migration_manifest()? {
-            Some(manifest) if manifest.phase == MigrationPhase::Published =>
-                Ok(manifest),
+            Some(manifest) if manifest.phase == MigrationPhase::Published => Ok(manifest),
             Some(manifest) => self.publish_staged_migration(&manifest),
             None => {
                 let manifest = self.stage_migration()?;
                 self.publish_staged_migration(&manifest)
-            },
+            }
         }
     }
 
@@ -328,8 +295,7 @@ impl TestStoreConfig {
     /// Fails if no manifest exists (nothing to resume).
     pub fn resume_migration(&self) -> Result<MigrationManifest, TestError> {
         match self.read_migration_manifest()? {
-            Some(manifest) if manifest.phase == MigrationPhase::Published =>
-                Ok(manifest),
+            Some(manifest) if manifest.phase == MigrationPhase::Published => Ok(manifest),
             Some(manifest) => self.publish_staged_migration(&manifest),
             None => Err(TestError::Migration(
                 "no migration manifest to resume".to_string(),
@@ -372,11 +338,7 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::{
-        ValidationExecution,
-        ValidationOutcome,
-        ValidationSpec,
-    };
+    use crate::{ValidationExecution, ValidationOutcome, ValidationSpec};
 
     fn config(dir: &TempDir) -> TestStoreConfig {
         TestStoreConfig::new(dir.path().join(".test"))
@@ -422,8 +384,7 @@ mod tests {
 
         let spec_entity = config.get_canonical_spec("vt-core").unwrap();
         assert_eq!(spec_entity.legacy_id, "vt-core");
-        let execution_entity =
-            config.get_canonical_execution("exec-core-1").unwrap();
+        let execution_entity = config.get_canonical_execution("exec-core-1").unwrap();
         assert_eq!(
             execution_entity.validation_spec_canonical_id,
             Some(spec_entity.canonical_id)

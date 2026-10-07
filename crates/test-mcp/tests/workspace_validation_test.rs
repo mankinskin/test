@@ -4,11 +4,7 @@
 //! for write operations (record_spec, record_execution).
 
 use rmcp::handler::server::wrapper::Parameters;
-use test_mcp::server::{
-    RecordExecutionInput,
-    RecordSpecInput,
-    TestServer,
-};
+use test_mcp::server::{RecordExecutionInput, RecordSpecInput, TestServer};
 
 fn make_test_server() -> TestServer {
     let tmp = tempfile::tempdir().expect("tempdir");

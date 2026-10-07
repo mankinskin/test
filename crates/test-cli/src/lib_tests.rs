@@ -32,7 +32,7 @@ fn parses_record_command() {
             assert_eq!(args.spec_id, "vt-a");
             assert_eq!(args.ticket_ids, vec!["ticket-1".to_string()]);
             assert!(matches!(args.outcome, OutcomeArg::Passed));
-        },
+        }
         other => panic!("unexpected command: {other:?}"),
     }
 }
@@ -87,8 +87,7 @@ fn move_rejects_ambient_workspace_aliases_before_store_access() {
 
 #[test]
 fn json_and_toon_conflict() {
-    let result =
-        parse_cli_from(["test", "--json", "--toon", "get", "--id", "exec-1"]);
+    let result = parse_cli_from(["test", "--json", "--toon", "get", "--id", "exec-1"]);
     assert!(result.is_err());
 }
 
@@ -141,9 +140,7 @@ fn record_then_list_round_trips_through_store() {
     run(parse_cli_from(exec_args).unwrap()).expect("record execution");
 
     let mut list_args = store_args(&dir);
-    list_args.extend(
-        ["--json", "list", "--ticket", "ticket-parity"].map(String::from),
-    );
+    list_args.extend(["--json", "list", "--ticket", "ticket-parity"].map(String::from));
     let output = run(parse_cli_from(list_args).unwrap()).expect("list");
 
     match output {
@@ -151,7 +148,7 @@ fn record_then_list_round_trips_through_store() {
             assert_eq!(value["count"], 1);
             assert_eq!(value["executions"][0]["id"], "exec-core");
             assert_eq!(value["executions"][0]["outcome"], "passed");
-        },
+        }
         other => panic!(
             "unexpected output variant: {}",
             matches!(other, CliOutput::Text(_))
@@ -188,17 +185,13 @@ fn log_record_then_logs_round_trips_through_store() {
         .join(".workflow-tools/log/default/captures/cap-1.json");
     assert!(canonical_capture_path.is_file());
     assert!(!dir.path().join(".workflow-tools/.log").exists());
-    let capture = LogStoreConfig::new(
-        dir.path().join(".workflow-tools/log"),
-        "default",
-    )
-    .get_capture("cap-1")
-    .expect("read capture from canonical log store");
+    let capture = LogStoreConfig::new(dir.path().join(".workflow-tools/log"), "default")
+        .get_capture("cap-1")
+        .expect("read capture from canonical log store");
     assert_eq!(capture.validation_execution_id, "exec-1");
 
     let mut logs_args = store_args(&dir);
-    logs_args
-        .extend(["--json", "logs", "--execution", "exec-1"].map(String::from));
+    logs_args.extend(["--json", "logs", "--execution", "exec-1"].map(String::from));
     let output = run(parse_cli_from(logs_args).unwrap()).expect("list logs");
 
     match output {
@@ -206,7 +199,7 @@ fn log_record_then_logs_round_trips_through_store() {
             assert_eq!(value["count"], 1);
             assert_eq!(value["captures"][0]["id"], "cap-1");
             assert_eq!(value["captures"][0]["kind"], "stderr");
-        },
+        }
         other => panic!(
             "unexpected output variant: {}",
             matches!(other, CliOutput::Text(_))
@@ -269,7 +262,7 @@ fn audit_reports_failed_and_slow_counts() {
             assert_eq!(value["failed_count"], 1);
             assert_eq!(value["slow_count"], 1);
             assert_eq!(value["failed"][0]["id"], "exec-fail");
-        },
+        }
         other => panic!(
             "unexpected output variant: {}",
             matches!(other, CliOutput::Text(_))
@@ -324,17 +317,14 @@ fn run_passes_records_execution_and_capture() {
     assert!(contents.contains("harness-ok"));
 
     let mut list_args = store_args(&dir);
-    list_args
-        .extend(["--json", "list", "--ticket", "ticket-1"].map(String::from));
+    list_args.extend(["--json", "list", "--ticket", "ticket-1"].map(String::from));
     let listed = run_value(list_args);
     assert_eq!(listed["count"], 1);
     assert_eq!(listed["executions"][0]["id"], "run-1-vt-a");
     assert!(listed["executions"][0]["duration_ms"].is_number());
 
     let mut logs_args = store_args(&dir);
-    logs_args.extend(
-        ["--json", "logs", "--execution", "run-1-vt-a"].map(String::from),
-    );
+    logs_args.extend(["--json", "logs", "--execution", "run-1-vt-a"].map(String::from));
     let logs = run_value(logs_args);
     assert_eq!(logs["count"], 1);
     assert_eq!(logs["captures"][0]["id"], "run-1-vt-a-log");
@@ -437,7 +427,7 @@ fn parses_move_command() {
             assert_eq!(args.id.as_deref(), Some("vt-core"));
             assert_eq!(args.to_workspace_root.as_deref(), Some("/tmp/target"));
             assert!(args.dry_run);
-        },
+        }
         other => panic!("unexpected command: {other:?}"),
     }
 }
@@ -516,4 +506,3 @@ fn move_requires_kind() {
     let result = run(parse_cli_from(move_args).unwrap());
     assert!(result.is_err());
 }
-
