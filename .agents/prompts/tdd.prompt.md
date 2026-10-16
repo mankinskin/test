@@ -9,7 +9,7 @@ agent: "agent"
 
 Drive the requested work with the smallest useful red-green-refactor loop available in this repository.
 
-Reference [AGENTS](../../../AGENTS.md), [ticket-cli](../../../../context-engine/memory-api/tools/cli/ticket-cli/README.md), [spec-cli](../../../../context-engine/memory-api/tools/cli/spec-cli/README.md), [test-api](../../../test/crates/test-api/src/lib.rs), and [log-api](../../../log/crates/log-api/src/lib.rs).
+Reference [AGENTS](https://github.com/mankinskin/workflow-tools/blob/main/AGENTS.md), [ticket workflow](https://github.com/mankinskin/ticket/blob/main/.agents/instructions/ticket/workflow.instructions.md), [spec workflow](https://github.com/mankinskin/spec/blob/main/.agents/instructions/spec/spec-system.instructions.md), [test evidence](../instructions/testing/validation-evidence.instructions.md), and [log API](https://github.com/mankinskin/log/blob/main/README.md).
 
 ## Workflow
 

@@ -60,7 +60,7 @@ Live validation must record all of the following when available:
 - The final visible UI state: success artifacts, displayed error details, or both.
 - Downloaded or exported outputs reached through the UI when the flow claims to produce artifacts.
 
-Do not stop at a DOM assertion when the user reported a live container/browser failure. Rebuild or restart the same local service path, then drive the page with real mouse, keyboard, file upload, and button-click actions. If the app runs in Docker, follow the Docker log and rebuild rules in [docker-container-debugging.instructions.md](../../../../.agents/instructions/workflow/docker-container-debugging.instructions.md).
+Do not stop at a DOM assertion when the user reported a live container/browser failure. Rebuild or restart the same local service path, then drive the page with real mouse, keyboard, file upload, and button-click actions. If the app runs in Docker, follow the Docker log and rebuild rules in [docker-container-debugging.instructions.md](https://github.com/mankinskin/workflow-tools/blob/main/.agents/instructions/workflow/docker-container-debugging.instructions.md).
 
 ## Assertion Surface
 
@@ -86,7 +86,7 @@ Follow these related instruction files for adjacent testing responsibilities:
 - [assertions.instructions.md](assertions.instructions.md) covers assertion quality and regression-test focus.
 - [split-responsibility-testing.instructions.md](split-responsibility-testing.instructions.md) covers Planner/Worker authorship boundaries for tests.
 - [validation-evidence.instructions.md](validation-evidence.instructions.md) covers recording validation evidence and linking evidence to tickets.
-- [error-boundary-handling.instructions.md](../../../../.agents/instructions/workflow/error-boundary-handling.instructions.md) covers frontend-facing error details versus trace-level maintainer context.
+- [error-boundary-handling.instructions.md](https://github.com/mankinskin/workflow-tools/blob/main/.agents/instructions/workflow/error-boundary-handling.instructions.md) covers frontend-facing error details versus trace-level maintainer context.
 
 ## Non-Goals
 

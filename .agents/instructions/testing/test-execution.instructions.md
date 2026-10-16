@@ -71,5 +71,5 @@ wastes a turn that could catch a systemic failure early.
   `cargo`/`playwright` process still holding the package-cache lock) before
   starting a retry; two overlapping cargo invocations serialize on the lock
   and look like a hang. This extends the general rule in
-  [tool-output.instructions.md](../../../.agents/instructions/workflow/tool-output.instructions.md)
+  [tool-output.instructions.md](https://github.com/mankinskin/workflow-tools/blob/main/.agents/instructions/workflow/tool-output.instructions.md)
   ("Long-Running Process Ownership") to the e2e/Playwright case specifically.
