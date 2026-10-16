@@ -86,6 +86,7 @@ Follow these related instruction files for adjacent testing responsibilities:
 - [assertions.instructions.md](assertions.instructions.md) covers assertion quality and regression-test focus.
 - [split-responsibility-testing.instructions.md](split-responsibility-testing.instructions.md) covers Planner/Worker authorship boundaries for tests.
 - [validation-evidence.instructions.md](validation-evidence.instructions.md) covers recording validation evidence and linking evidence to tickets.
+- [fullstack-live-validation.instructions.md](fullstack-live-validation.instructions.md) covers owned responsive native/container/live runners, sparse live origins, budget and artifact read-back.
 - [error-boundary-handling.instructions.md](https://github.com/mankinskin/workflow-tools/blob/main/.agents/instructions/workflow/error-boundary-handling.instructions.md) covers frontend-facing error details versus trace-level maintainer context.
 
 ## Non-Goals

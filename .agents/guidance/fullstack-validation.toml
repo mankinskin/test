@@ -1,0 +1,12 @@
+[profile]
+id = "fullstack-validation"
+
+[[corpus]]
+id = "fullstack-live-validation"
+paths = [
+  "test/.agents/instructions/testing/end-to-end-testing.instructions.md",
+  "test/.agents/instructions/testing/fullstack-live-validation.instructions.md",
+]
+
+[destination]
+scope = "repo"
