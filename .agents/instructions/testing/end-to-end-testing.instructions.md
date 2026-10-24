@@ -1,6 +1,5 @@
 ---
 description: "Use when authoring, reviewing, or validating end-to-end (E2E) tests that must drive full-stack applications through user-observable interfaces without backend mocking or in-test power features."
-applyTo: "**/e2e/**,**/*.e2e.*,**/*.spec.ts,**/*.spec.tsx,**/*.spec.js,**/*.spec.jsx"
 ---
 
 # End-to-End Testing: UI-Driven Authoring Rules

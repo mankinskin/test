@@ -1,6 +1,5 @@
 ---
 description: "Use when authoring or running the full-stack live-validation workflow that drives real browser/backend/provider flows across responsive media projects, distinct from mocked, offline-only, or forced-success coverage."
-applyTo: "**/e2e-runner.mjs,**/*.live.spec.*,**/*.live.e2e.*,**/live-budget.json"
 ---
 
 # Full-Stack Live Validation
