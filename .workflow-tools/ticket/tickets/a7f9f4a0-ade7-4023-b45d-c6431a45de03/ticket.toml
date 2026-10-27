@@ -1,0 +1,10 @@
+id = "a7f9f4a0-ade7-4023-b45d-c6431a45de03"
+created_at = "2026-10-26T10:48:21.634412577+00:00"
+title = "[test-cli][bug] Resolve verification specs from the canonical workspace store"
+state = "done"
+component = "test-cli"
+parts = [{ id = "669c8646-fd10-41eb-9e0e-560794d8c5c3", kind = "objective", path = "parts/objective.md", frozen = true, created_at = "2026-10-26T10:49:02.743558423Z" }, { id = "13c3a470-e5e7-4ee2-861d-226ffb358478", kind = "requirements", path = "parts/requirements.md", frozen = true, created_at = "2026-10-26T10:49:02.857881437Z" }, { id = "d44cb0b4-21e3-4dd6-af83-206238526118", kind = "acceptance_criteria", path = "parts/acceptance-criteria.md", frozen = true, created_at = "2026-10-26T10:49:02.954848609Z" }, { id = "9319199d-0e5d-43b7-b608-63a10b9aa38a", kind = "validation", path = "parts/validation.md", frozen = false, created_at = "2026-10-26T10:49:03.066405522Z" }, { id = "df938a6c-8d86-424e-982f-e7d7bb845a09", kind = "review", path = "parts/review.md", frozen = false, created_at = "2026-10-26T12:06:50.997292095Z" }]
+plan_revision = 1
+priority = "high"
+tags = "spec-verification,workspace-resolution"
+type = "bug"

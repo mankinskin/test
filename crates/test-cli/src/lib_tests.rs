@@ -443,6 +443,8 @@ fn run_failure_maps_to_failed_outcome() {
             "run-fail",
             "--log-dir",
             log_dir.to_string_lossy().as_ref(),
+            "--ticket",
+            "ticket-fail",
         ]
         .map(String::from),
     );
@@ -457,6 +459,11 @@ fn run_failure_maps_to_failed_outcome() {
 fn run_flags_over_budget_against_spec_threshold() {
     let dir = TempDir::new().unwrap();
     let log_dir = dir.path().join("logs");
+    let slow_command = if cfg!(windows) {
+        "ping -n 2 127.0.0.1 >NUL"
+    } else {
+        "sleep 0.05"
+    };
 
     let mut spec_args = store_args(&dir);
     spec_args.extend(
@@ -479,7 +486,7 @@ fn run_flags_over_budget_against_spec_threshold() {
             "--json",
             "run",
             "--command",
-            "echo slow",
+            slow_command,
             "--spec-id",
             "vt-slow",
             "--domain",
@@ -490,6 +497,8 @@ fn run_flags_over_budget_against_spec_threshold() {
             "run-slow",
             "--log-dir",
             log_dir.to_string_lossy().as_ref(),
+            "--ticket",
+            "ticket-slow",
         ]
         .map(String::from),
     );
@@ -497,6 +506,7 @@ fn run_flags_over_budget_against_spec_threshold() {
 
     assert_eq!(value["over_budget"], true);
     assert_eq!(value["slow_threshold_ms"], 0);
+    assert!(value["duration_ms"].as_u64().unwrap() > 0);
 }
 
 #[test]
@@ -596,4 +606,171 @@ fn move_requires_kind() {
     );
     let result = run(parse_cli_from(move_args).unwrap());
     assert!(result.is_err());
+}
+
+#[test]
+fn resolve_spec_root_prefers_canonical_store_over_conflicting_legacy_index() {
+    let dir = TempDir::new().unwrap();
+    let canonical = memory_kernel::workspace::canonical_store_root(dir.path(), ".spec");
+    let test_store = memory_kernel::workspace::canonical_store_root(dir.path(), ".test");
+    std::fs::create_dir_all(&canonical).unwrap();
+    std::fs::create_dir_all(&test_store).unwrap();
+    std::fs::create_dir_all(dir.path().join(".spec")).unwrap();
+
+    let root = resolve_spec_root(&test_store, Some(dir.path()));
+    assert_eq!(root, canonical);
+    assert_ne!(root, dir.path().join(".spec"));
+}
+
+#[test]
+fn resolve_spec_root_uses_canonical_store_for_ambient_workspace() {
+    let dir = TempDir::new().unwrap();
+    let test_store = memory_kernel::workspace::canonical_store_root(dir.path(), ".test");
+    std::fs::create_dir_all(&test_store).unwrap();
+    let legacy_sibling = test_store.parent().unwrap().join(".spec");
+    std::fs::create_dir_all(&legacy_sibling).unwrap();
+    let canonical = memory_kernel::workspace::canonical_store_root(dir.path(), ".spec");
+
+    let root = resolve_spec_root(&test_store, None);
+
+    assert_eq!(root, canonical);
+    assert_ne!(root, legacy_sibling);
+}
+
+#[test]
+fn record_verifies_linked_spec_in_canonical_store_not_legacy_index() {
+    use spec_api::{SpecManifest, SpecStore};
+
+    let dir = TempDir::new().unwrap();
+    let body = "# Spec\n\n## Guards\n- `vt-guard`\n";
+    let canonical = memory_kernel::workspace::canonical_store_root(dir.path(), ".spec");
+    let test_store = memory_kernel::workspace::canonical_store_root(dir.path(), ".test");
+    let manifest = SpecManifest::new("root/shared", "Shared spec", "cmp");
+    let mut canonical_store = SpecStore::init(&canonical).unwrap();
+    let spec_id = canonical_store
+        .create(&manifest, body, None)
+        .unwrap()
+        .to_string();
+    for state in ["reviewed", "approved", "implemented"] {
+        canonical_store
+            .update(&spec_id, std::collections::BTreeMap::new(), Some(state))
+            .unwrap();
+    }
+
+    // The same id is already verified in the wrongly derived legacy index.
+    let legacy = test_store.parent().unwrap().join(".spec");
+    let mut legacy_store = SpecStore::init(&legacy).unwrap();
+    legacy_store.create(&manifest, body, None).unwrap();
+    for state in ["reviewed", "approved", "implemented", "verified"] {
+        legacy_store
+            .update(&spec_id, std::collections::BTreeMap::new(), Some(state))
+            .unwrap();
+    }
+
+    let mut args = store_args(&dir);
+    args.extend(
+        [
+            "--json",
+            "record",
+            "--id",
+            "exec-1",
+            "--spec-id",
+            "vt-guard",
+            "--outcome",
+            "passed",
+            "--spec",
+            spec_id.as_str(),
+            "--domain",
+            "test",
+            "--operation",
+            "run",
+            "--run-id",
+            "run-1",
+        ]
+        .map(String::from),
+    );
+    let value = run_value(args);
+    assert_eq!(value["verified_spec_ids"][0], spec_id.as_str(), "{value}");
+    assert_eq!(
+        value["spec_verification"][0]["status"], "verified",
+        "{value}"
+    );
+
+    let canonical_store = SpecStore::open_or_init(&canonical).unwrap();
+    assert_eq!(
+        canonical_store.get(&spec_id).unwrap().state(),
+        Some("verified")
+    );
+    let legacy_store = SpecStore::open_or_init(&legacy).unwrap();
+    assert_eq!(
+        legacy_store.get(&spec_id).unwrap().state(),
+        Some("verified")
+    );
+}
+
+#[test]
+fn run_verifies_specs_linked_from_the_validation_spec() {
+    use spec_api::{SpecManifest, SpecStore};
+
+    let dir = TempDir::new().unwrap();
+    let body = "# Spec\n\n## Guards\n- `vt-guard`\n";
+    let canonical = memory_kernel::workspace::canonical_store_root(dir.path(), ".spec");
+    let mut canonical_store = SpecStore::init(&canonical).unwrap();
+    let spec_id = canonical_store
+        .create(
+            &SpecManifest::new("root/run-guard", "Run guard", "cmp"),
+            body,
+            None,
+        )
+        .unwrap()
+        .to_string();
+    for state in ["reviewed", "approved", "implemented"] {
+        canonical_store
+            .update(&spec_id, std::collections::BTreeMap::new(), Some(state))
+            .unwrap();
+    }
+
+    let mut spec_args = store_args(&dir);
+    spec_args.extend(
+        [
+            "record-spec",
+            "--id",
+            "vt-guard",
+            "--title",
+            "Run guard validation",
+            "--spec",
+            spec_id.as_str(),
+        ]
+        .map(String::from),
+    );
+    run(parse_cli_from(spec_args).unwrap()).expect("record validation spec");
+
+    let log_dir = dir.path().join("logs");
+    let mut run_args = store_args(&dir);
+    run_args.extend(
+        [
+            "--json",
+            "run",
+            "--command",
+            "echo guard-passed",
+            "--spec-id",
+            "vt-guard",
+            "--domain",
+            "test",
+            "--operation",
+            "run",
+            "--run-id",
+            "run-guard",
+            "--log-dir",
+            log_dir.to_string_lossy().as_ref(),
+        ]
+        .map(String::from),
+    );
+    let value = run_value(run_args);
+
+    assert_eq!(value["verified_spec_ids"][0], spec_id.as_str(), "{value}");
+    assert_eq!(
+        value["spec_verification"][0]["status"], "verified",
+        "{value}"
+    );
 }

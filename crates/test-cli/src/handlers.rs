@@ -8,8 +8,8 @@ use log_api::{
 };
 use spec_api::{SpecStore, SpecVerificationOutcome, recompute_spec_verified_state};
 use test_api::{
-    BenchmarkQuery, ExecutionQuery, TestStoreConfig, ValidationExecution, ValidationLinks,
-    ValidationOutcome, ValidationProvenance, ValidationSpec,
+    BenchmarkQuery, ExecutionQuery, TestError, TestStoreConfig, ValidationExecution,
+    ValidationLinks, ValidationOutcome, ValidationProvenance, ValidationSpec,
 };
 
 use crate::{CliRunError, RunArgs, TestCommand};
@@ -243,13 +243,16 @@ pub(crate) fn run_harness(
     };
     let capture_id = format!("{execution_id}-log");
 
-    let slow_threshold_ms = match args.slow_threshold_ms {
-        Some(threshold) => Some(threshold),
-        None => config
-            .get_spec(&args.spec_id)
-            .ok()
-            .and_then(|spec| spec.slow_threshold_ms),
+    let validation_spec = match config.get_spec(&args.spec_id) {
+        Ok(spec) => Some(spec),
+        Err(TestError::SpecNotFound(_)) => None,
+        Err(error) => return Err(CliRunError::Test(error)),
     };
+    let slow_threshold_ms = args.slow_threshold_ms.or_else(|| {
+        validation_spec
+            .as_ref()
+            .and_then(|spec| spec.slow_threshold_ms)
+    });
 
     let (shell, shell_flag) = if cfg!(windows) {
         ("cmd", "/C")
@@ -309,7 +312,9 @@ pub(crate) fn run_harness(
     execution.throughput = args.throughput;
     execution.detail = Some(detail.clone());
     execution.links = ValidationLinks {
-        spec_ids: vec![args.spec_id.clone()],
+        spec_ids: validation_spec
+            .map(|spec| spec.links.spec_ids)
+            .unwrap_or_default(),
         ticket_ids: args.ticket_ids.clone(),
         log_ids: vec![capture_id.clone()],
         ..Default::default()

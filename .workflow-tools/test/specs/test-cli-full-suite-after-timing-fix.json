@@ -1,0 +1,11 @@
+{
+  "id": "test-cli-full-suite-after-timing-fix",
+  "title": "test-cli full suite after timing-test correction",
+  "command": "cargo test --manifest-path workflow-tools/Cargo.toml -p test-cli",
+  "detail": "Verifies all test-cli unit and integration tests, including threshold classification with an explicit delay.",
+  "links": {
+    "ticket_ids": [
+      "a7f9f4a0-ade7-4023-b45d-c6431a45de03"
+    ]
+  }
+}

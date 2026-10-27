@@ -2,7 +2,7 @@ mod args;
 mod handlers;
 mod move_cmd;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use serde_json::{Value, json};
@@ -95,7 +95,7 @@ pub fn run(mut cli: TestCli) -> Result<CliOutput, CliRunError> {
         None => workspace::resolve_consumer_store_root(None, None, None, LOG_STORE_DIR)?,
     };
     let log_config = LogStoreConfig::new(log_root, "default");
-    let spec_root = resolve_spec_root(&store_root, cli.workspace_root.as_deref())?;
+    let spec_root = resolve_spec_root(&store_root, cli.workspace_root.as_deref());
 
     let payload = dispatch(&config, &log_config, &spec_root, cli.command)?;
 
@@ -129,14 +129,12 @@ fn dispatch(
     }
 }
 
-fn resolve_spec_root(
-    store_root: &std::path::Path,
-    workspace_root: Option<&std::path::Path>,
-) -> Result<PathBuf, memory_kernel::workspace::ConsumerWorkspaceError> {
-    match store_root.parent() {
-        Some(parent) => Ok(parent.join(".spec")),
-        None => workspace::resolve_consumer_store_root(None, workspace_root, None, ".spec"),
-    }
+fn resolve_spec_root(store_root: &Path, workspace_root: Option<&Path>) -> PathBuf {
+    let workspace_root = workspace_root.map_or_else(
+        || workspace::resolve_workspace_root_from_store_root(store_root, TEST_STORE_DIR),
+        Path::to_path_buf,
+    );
+    workspace::resolve_store_root_for_initialization_from(&workspace_root, SPEC_STORE_DIR)
 }
 
 fn render_human(payload: &Value) -> String {

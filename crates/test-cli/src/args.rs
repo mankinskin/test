@@ -8,6 +8,7 @@ use test_api::{ExecutionSort, ValidationOutcome};
 pub(crate) const TEST_STORE_DIR: &str = ".test";
 /// Directory name for the validation-log store (sibling of `.test`).
 pub(crate) const LOG_STORE_DIR: &str = ".log";
+pub(crate) const SPEC_STORE_DIR: &str = ".spec";
 
 #[derive(Debug, Parser)]
 #[command(
