@@ -2,12 +2,252 @@ use tempfile::TempDir;
 
 use super::*;
 
+#[test]
+fn run_rejects_definition_overrides() {
+    for (flag, value) in [
+        ("--command", "echo override"),
+        ("--ticket", "ticket-override"),
+        ("--slow-threshold-ms", "1"),
+    ] {
+        assert!(
+            parse_cli_from(["test", "run", "--spec-id", "vt-fixed", flag, value]).is_err(),
+            "{flag} must be defined only in the stored definition"
+        );
+    }
+    assert!(
+        parse_cli_from([
+            "test",
+            "run",
+            "--spec-id",
+            "vt-fixed",
+            "--spec-id",
+            "vt-other"
+        ])
+        .is_err()
+    );
+}
+
 fn store_args(dir: &TempDir) -> Vec<String> {
     vec![
         "test".to_string(),
         "--workspace".to_string(),
         dir.path().to_string_lossy().to_string(),
     ]
+}
+
+#[test]
+fn run_uses_stored_command_when_command_is_omitted() {
+    let dir = TempDir::new().unwrap();
+    let mut record = store_args(&dir);
+    record.extend(
+        [
+            "record-spec",
+            "--id",
+            "vt-stored",
+            "--title",
+            "Stored command",
+            "--ticket",
+            "ticket-stored",
+            "--command",
+            "echo stored-command-ok",
+            "--slow-threshold-ms",
+            "0",
+        ]
+        .map(String::from),
+    );
+    run(parse_cli_from(record).unwrap()).unwrap();
+
+    let mut args = store_args(&dir);
+    args.extend(
+        [
+            "--json",
+            "run",
+            "--spec-id",
+            "vt-stored",
+            "--id",
+            "stored-run",
+            "--domain",
+            "test",
+            "--operation",
+            "run",
+            "--run-id",
+            "stored-check",
+            "--log-dir",
+            dir.path().join("logs").to_str().unwrap(),
+        ]
+        .map(String::from),
+    );
+    let value = run_value(args);
+    assert_eq!(value["outcome"], "passed");
+    assert_eq!(value["slow_threshold_ms"], 0);
+    let contents = std::fs::read_to_string(value["log_locator"].as_str().unwrap()).unwrap();
+    assert!(contents.contains("stored-command-ok"));
+    let mut get = store_args(&dir);
+    get.extend(["--json", "get", "--id", "stored-run"].map(String::from));
+    let stored = run_value(get);
+    assert!(stored.to_string().contains("echo stored-command-ok"));
+}
+
+#[test]
+fn run_stored_command_requires_an_existing_runnable_definition() {
+    for command in [None, Some(""), Some("   ")] {
+        let dir = TempDir::new().unwrap();
+        let mut record = store_args(&dir);
+        record
+            .extend(["record-spec", "--id", "vt-empty", "--title", "No command"].map(String::from));
+        if let Some(command) = command {
+            record.extend(["--command", command].map(String::from));
+        }
+        run(parse_cli_from(record).unwrap()).unwrap();
+        for id in ["vt-empty", "vt-missing"] {
+            let mut args = store_args(&dir);
+            args.extend(
+                [
+                    "run",
+                    "--spec-id",
+                    id,
+                    "--log-dir",
+                    dir.path().join("logs").to_str().unwrap(),
+                ]
+                .map(String::from),
+            );
+            let error = match run(parse_cli_from(args).unwrap()) {
+                Err(error) => error.to_string(),
+                Ok(_) => panic!("missing runnable definition must fail"),
+            };
+            assert!(error.contains(id), "{error}");
+            assert!(!dir.path().join("logs").exists());
+        }
+        let mut list = store_args(&dir);
+        list.extend(["--json", "list"].map(String::from));
+        assert_eq!(run_value(list)["count"], 0);
+    }
+}
+
+#[test]
+fn run_inherits_definition_links_and_rejects_duplicate_provenance() {
+    let dir = TempDir::new().unwrap();
+    let config = TestStoreConfig::for_workspace(dir.path());
+    let mut spec = test_api::ValidationSpec::new("vt-inherit", "Inherited definition");
+    spec.command = Some("echo inherited".into());
+    spec.links.ticket_ids = vec!["ticket-owner".into()];
+    spec.links.acceptance_criterion_ids = vec!["criterion-owner".into()];
+    spec.links.doc_evidence_ids = vec!["doc-owner".into()];
+    spec.provenance.domain = Some("test".into());
+    spec.provenance.operation = Some("run".into());
+    config.record_spec(&spec).unwrap();
+    let mut args = store_args(&dir);
+    args.extend(
+        [
+            "--json",
+            "run",
+            "--spec-id",
+            "vt-inherit",
+            "--run-id",
+            "inherit",
+            "--log-dir",
+            dir.path().join("logs").to_str().unwrap(),
+        ]
+        .map(String::from),
+    );
+    let value = run_value(args.clone());
+    let execution = config
+        .get_execution(value["execution_id"].as_str().unwrap())
+        .unwrap();
+    assert_eq!(execution.links.ticket_ids, spec.links.ticket_ids);
+    assert_eq!(
+        execution.links.acceptance_criterion_ids,
+        spec.links.acceptance_criterion_ids
+    );
+    assert_eq!(
+        execution.links.doc_evidence_ids,
+        spec.links.doc_evidence_ids
+    );
+    assert_eq!(config.get_spec("vt-inherit").unwrap(), spec);
+    for domain in ["test", "override"] {
+        let mut duplicate = args.clone();
+        duplicate.extend(["--domain", domain].map(String::from));
+        assert!(matches!(
+            run(parse_cli_from(duplicate).unwrap()),
+            Err(CliRunError::BadRequest(_))
+        ));
+    }
+}
+
+#[test]
+fn run_stored_failing_command_records_failed_outcome() {
+    let dir = TempDir::new().unwrap();
+    let mut record = store_args(&dir);
+    record.extend(
+        [
+            "record-spec",
+            "--id",
+            "vt-failed",
+            "--title",
+            "Failure",
+            "--ticket",
+            "ticket-failure",
+            "--command",
+            "exit 7",
+        ]
+        .map(String::from),
+    );
+    run(parse_cli_from(record).unwrap()).unwrap();
+    let mut args = store_args(&dir);
+    args.extend(
+        [
+            "--json",
+            "run",
+            "--spec-id",
+            "vt-failed",
+            "--log-dir",
+            dir.path().join("logs").to_str().unwrap(),
+            "--domain",
+            "test",
+            "--operation",
+            "run",
+            "--run-id",
+            "failure-check",
+        ]
+        .map(String::from),
+    );
+    let value = run_value(args);
+    assert_eq!(value["outcome"], "failed");
+    assert_eq!(value["exit_code"], 7);
+}
+
+#[test]
+fn run_rejects_missing_provenance_before_starting_command() {
+    let dir = TempDir::new().unwrap();
+    let mut record = store_args(&dir);
+    record.extend(
+        [
+            "record-spec",
+            "--id",
+            "vt-blank",
+            "--title",
+            "Blank override",
+            "--ticket",
+            "ticket-owned",
+            "--command",
+            "echo should-not-run",
+        ]
+        .map(String::from),
+    );
+    run(parse_cli_from(record).unwrap()).unwrap();
+    let mut args = store_args(&dir);
+    args.extend(
+        [
+            "run",
+            "--spec-id",
+            "vt-blank",
+            "--log-dir",
+            dir.path().join("logs").to_str().unwrap(),
+        ]
+        .map(String::from),
+    );
+    assert!(run(parse_cli_from(args).unwrap()).is_err());
+    assert!(!dir.path().join("logs").exists());
 }
 
 #[test]
@@ -372,14 +612,18 @@ fn run_value(args: Vec<String>) -> Value {
 fn run_passes_records_execution_and_capture() {
     let dir = TempDir::new().unwrap();
     let log_dir = dir.path().join("logs");
+    let mut spec = test_api::ValidationSpec::new("vt-a", "Harness");
+    spec.command = Some("echo harness-ok".into());
+    spec.links.ticket_ids = vec!["ticket-1".into()];
+    TestStoreConfig::for_workspace(dir.path())
+        .record_spec(&spec)
+        .unwrap();
 
     let mut args = store_args(&dir);
     args.extend(
         [
             "--json",
             "run",
-            "--command",
-            "echo harness-ok",
             "--spec-id",
             "vt-a",
             "--run-id",
@@ -390,8 +634,6 @@ fn run_passes_records_execution_and_capture() {
             "run",
             "--log-dir",
             log_dir.to_string_lossy().as_ref(),
-            "--ticket",
-            "ticket-1",
         ]
         .map(String::from),
     );
@@ -425,14 +667,18 @@ fn run_passes_records_execution_and_capture() {
 fn run_failure_maps_to_failed_outcome() {
     let dir = TempDir::new().unwrap();
     let log_dir = dir.path().join("logs");
+    let mut spec = test_api::ValidationSpec::new("vt-fail", "Failure");
+    spec.command = Some("exit 3".into());
+    spec.links.ticket_ids = vec!["ticket-fail".into()];
+    TestStoreConfig::for_workspace(dir.path())
+        .record_spec(&spec)
+        .unwrap();
 
     let mut args = store_args(&dir);
     args.extend(
         [
             "--json",
             "run",
-            "--command",
-            "exit 3",
             "--spec-id",
             "vt-fail",
             "--domain",
@@ -443,8 +689,6 @@ fn run_failure_maps_to_failed_outcome() {
             "run-fail",
             "--log-dir",
             log_dir.to_string_lossy().as_ref(),
-            "--ticket",
-            "ticket-fail",
         ]
         .map(String::from),
     );
@@ -473,6 +717,10 @@ fn run_flags_over_budget_against_spec_threshold() {
             "vt-slow",
             "--title",
             "Slow",
+            "--command",
+            slow_command,
+            "--ticket",
+            "ticket-slow",
             "--slow-threshold-ms",
             "0",
         ]
@@ -485,8 +733,6 @@ fn run_flags_over_budget_against_spec_threshold() {
         [
             "--json",
             "run",
-            "--command",
-            slow_command,
             "--spec-id",
             "vt-slow",
             "--domain",
@@ -497,8 +743,6 @@ fn run_flags_over_budget_against_spec_threshold() {
             "run-slow",
             "--log-dir",
             log_dir.to_string_lossy().as_ref(),
-            "--ticket",
-            "ticket-slow",
         ]
         .map(String::from),
     );
@@ -738,6 +982,8 @@ fn run_verifies_specs_linked_from_the_validation_spec() {
             "vt-guard",
             "--title",
             "Run guard validation",
+            "--command",
+            "echo guard-passed",
             "--spec",
             spec_id.as_str(),
         ]
@@ -751,8 +997,6 @@ fn run_verifies_specs_linked_from_the_validation_spec() {
         [
             "--json",
             "run",
-            "--command",
-            "echo guard-passed",
             "--spec-id",
             "vt-guard",
             "--domain",

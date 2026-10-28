@@ -60,7 +60,7 @@ pub enum TestCommand {
     LogRecord(LogRecordArgs),
     /// List validation log captures, optionally filtered by execution id.
     Logs(LogsArgs),
-    /// Run a test/bench command, capturing timing + output into the test and log stores.
+    /// Run a stored validation definition, capturing timing and output.
     Run(RunArgs),
     /// Move a validation spec or execution to another workspace store.
     Move(MoveArgs),
@@ -333,9 +333,6 @@ pub struct LogsArgs {
 
 #[derive(Debug, Args)]
 pub struct RunArgs {
-    /// Shell command to execute (the test/bench suite to run).
-    #[arg(long)]
-    pub command: String,
     /// The validation spec id this run belongs to.
     #[arg(long)]
     pub spec_id: String,
@@ -346,18 +343,12 @@ pub struct RunArgs {
     /// Run id grouping all executions from one harness invocation.
     #[arg(long)]
     pub run_id: Option<String>,
-    /// Slow-run budget in milliseconds. Overrides the recorded spec threshold.
-    #[arg(long)]
-    pub slow_threshold_ms: Option<u64>,
     /// Optional throughput metric (ops/sec or items/sec).
     #[arg(long)]
     pub throughput: Option<f64>,
     /// Directory for captured combined stdout/stderr logs.
     #[arg(long, default_value = "target/test-logs")]
     pub log_dir: PathBuf,
-    /// Linked ticket ids (repeatable).
-    #[arg(long = "ticket")]
-    pub ticket_ids: Vec<String>,
     /// Source file path that produced this run.
     #[arg(long)]
     pub source_path: Option<String>,

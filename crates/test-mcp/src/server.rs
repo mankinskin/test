@@ -19,6 +19,30 @@ use uuid::Uuid;
 
 // ── Input types ───────────────────────────────────────────────────────────────
 
+/// Run-only metadata. Definition-owned fields cannot be supplied here.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RunInput {
+    /// Explicit owning workspace/store selector, not the command working directory.
+    pub workspace: String,
+    /// Existing stored validation definition; it owns command, budget and links.
+    pub spec_id: String,
+    /// Execution ID; defaults to run_id-spec_id, otherwise spec_id.
+    pub id: Option<String>,
+    /// Run grouping, supplied only when absent from the definition.
+    pub run_id: Option<String>,
+    /// Measured throughput for this execution.
+    pub throughput: Option<f64>,
+    /// Log output directory relative to the MCP process working directory.
+    pub log_dir: Option<PathBuf>,
+    /// Supply provenance fields only when absent from the definition.
+    pub source_path: Option<String>,
+    pub test_id: Option<String>,
+    pub domain: Option<String>,
+    pub operation: Option<String>,
+    pub transport: Option<String>,
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RecordSpecInput {
     /// Concrete workspace path, repo root, .test store path, or path inside that store. Do not use omitted, empty, 'default', or '..' for entity creation; use '.' explicitly to target the MCP server process's current working directory.
@@ -416,6 +440,49 @@ impl TestServer {
 #[tool_router]
 impl TestServer {
     #[tool(
+        name = "test_run",
+        description = "Execute a trusted stored validation definition. Command, budget and all links come only from the definition. Supply provenance only if absent from the definition. Commands run in the server process working directory, not the selected store. Captures timing, outcome and logs using the same harness as the CLI."
+    )]
+    pub async fn test_run(
+        &self,
+        Parameters(input): Parameters<RunInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let value = tokio::task::spawn_blocking(move || {
+            test_cli::run(test_cli::TestCli {
+                json: true,
+                toon: false,
+                workspace_root: Some(PathBuf::from(input.workspace)),
+                command: test_cli::TestCommand::Run(test_cli::RunArgs {
+                    spec_id: input.spec_id,
+                    id: input.id,
+                    run_id: input.run_id,
+                    throughput: input.throughput,
+                    log_dir: input
+                        .log_dir
+                        .unwrap_or_else(|| PathBuf::from("target/test-logs")),
+                    source_path: input.source_path,
+                    test_id: input.test_id,
+                    domain: input.domain,
+                    operation: input.operation,
+                    transport: input.transport,
+                }),
+            })
+        })
+        .await
+        .map_err(|error| {
+            McpError::internal_error(format!("test runner task failed: {error}"), None)
+        })?
+        .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+        match value {
+            test_cli::CliOutput::Machine(value, _) => Self::json_result(&value),
+            test_cli::CliOutput::Text(_) => Err(McpError::internal_error(
+                "test runner returned unexpected text output",
+                None,
+            )),
+        }
+    }
+
+    #[tool(
         name = "test_record_spec",
         description = "Record (create or overwrite) a validation spec describing a test or check to run."
     )]
@@ -731,7 +798,7 @@ impl ServerHandler for TestServer {
             },
             instructions: Some(
                 "test-mcp provides direct access to the test-result store (test-api). Use named \
-                 tools to record validation specs and executions, fetch them by id, and query \
+                 tools to run stored validation definitions, record validation specs and executions, fetch them by id, and query \
                  executions by ticket/spec/outcome. Link executions to tickets via ticket_ids so \
                  tickets can reference stored evidence instead of inlining results."
                     .to_string(),
@@ -764,6 +831,165 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
+
+    fn run_input(workspace: &std::path::Path, command_id: &str, run_id: &str) -> RunInput {
+        RunInput {
+            workspace: workspace.to_string_lossy().into_owned(),
+            spec_id: command_id.into(),
+            id: None,
+            run_id: Some(run_id.into()),
+            throughput: None,
+            log_dir: Some(workspace.join("logs")),
+            source_path: None,
+            test_id: None,
+            domain: Some("test".into()),
+            operation: Some("run".into()),
+            transport: None,
+        }
+    }
+
+    #[test]
+    fn run_schema_rejects_all_definition_overrides_and_unknown_fields() {
+        assert!(
+            serde_json::from_str::<RunInput>(
+                r#"{"workspace":".","spec_id":"first","spec_id":"second"}"#
+            )
+            .is_err()
+        );
+        let schema = schemars::schema_for!(RunInput);
+        let schema = serde_json::to_value(schema).unwrap();
+        assert_eq!(schema["additionalProperties"], false);
+        for field in [
+            "command",
+            "ticket_ids",
+            "spec_ids",
+            "acceptance_criterion_ids",
+            "slow_threshold_ms",
+            "unknown",
+        ] {
+            let mut input = serde_json::json!({"workspace": ".", "spec_id": "vt"});
+            input[field] = serde_json::json!("override");
+            assert!(
+                serde_json::from_value::<RunInput>(input).is_err(),
+                "{field}"
+            );
+            assert!(schema["properties"].get(field).is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn stored_definition_run_has_cli_mcp_parity() {
+        let dir = tempdir().unwrap();
+        let config = TestStoreConfig::for_workspace(dir.path());
+        let server = TestServer::new(config.root.clone());
+        for (spec_id, command, expected) in [
+            ("vt-pass", "echo shared-harness", "passed"),
+            ("vt-fail", "exit 7", "failed"),
+        ] {
+            let mut spec = ValidationSpec::new(spec_id, "Parity");
+            spec.command = Some(command.into());
+            spec.links.ticket_ids = vec!["ticket-owner".into()];
+            spec.links.acceptance_criterion_ids = vec!["criterion-owner".into()];
+            spec.slow_threshold_ms = Some(0);
+            config.record_spec(&spec).unwrap();
+            let result = server
+                .test_run(Parameters(run_input(dir.path(), spec_id, "mcp")))
+                .await
+                .unwrap();
+            let mcp: serde_json::Value =
+                serde_json::from_str(&result.content[0].as_text().unwrap().text).unwrap();
+            let cli = test_cli::TestCli {
+                json: true,
+                toon: false,
+                workspace_root: Some(dir.path().into()),
+                command: test_cli::TestCommand::Run(test_cli::RunArgs {
+                    spec_id: spec_id.into(),
+                    id: None,
+                    run_id: Some("cli".into()),
+                    throughput: None,
+                    log_dir: dir.path().join("logs"),
+                    source_path: None,
+                    test_id: None,
+                    domain: Some("test".into()),
+                    operation: Some("run".into()),
+                    transport: None,
+                }),
+            };
+            let test_cli::CliOutput::Machine(cli, _) = test_cli::run(cli).unwrap() else {
+                panic!("expected machine result")
+            };
+            assert_eq!(mcp["outcome"], expected);
+            for field in [
+                "status",
+                "kind",
+                "spec_id",
+                "outcome",
+                "exit_code",
+                "slow_threshold_ms",
+                "verified_spec_ids",
+                "spec_verification",
+            ] {
+                assert_eq!(mcp[field], cli[field], "{field}");
+            }
+            for payload in [&mcp, &cli] {
+                let execution = config
+                    .get_execution(payload["execution_id"].as_str().unwrap())
+                    .unwrap();
+                assert_eq!(execution.links.ticket_ids, spec.links.ticket_ids);
+                assert_eq!(
+                    execution.links.acceptance_criterion_ids,
+                    spec.links.acceptance_criterion_ids
+                );
+                assert!(std::fs::read_to_string(payload["log_locator"].as_str().unwrap()).is_ok());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn run_rejects_missing_definition_command_and_duplicate_provenance_without_logs() {
+        let dir = tempdir().unwrap();
+        let config = TestStoreConfig::for_workspace(dir.path());
+        let server = TestServer::new(config.root.clone());
+        assert!(
+            server
+                .test_run(Parameters(run_input(dir.path(), "vt-missing", "missing")))
+                .await
+                .is_err()
+        );
+        for command in [None, Some(""), Some("  ")] {
+            let mut spec = ValidationSpec::new("vt-empty", "Missing command");
+            spec.command = command.map(String::from);
+            config.record_spec(&spec).unwrap();
+            assert!(
+                server
+                    .test_run(Parameters(run_input(dir.path(), "vt-empty", "empty")))
+                    .await
+                    .is_err()
+            );
+        }
+        let mut spec = ValidationSpec::new("vt-duplicate", "Duplicate provenance");
+        spec.command = Some("echo should-not-run".into());
+        spec.links.ticket_ids = vec!["ticket-owner".into()];
+        spec.provenance.domain = Some("test".into());
+        config.record_spec(&spec).unwrap();
+        assert!(
+            server
+                .test_run(Parameters(run_input(
+                    dir.path(),
+                    "vt-duplicate",
+                    "duplicate"
+                )))
+                .await
+                .is_err()
+        );
+        assert!(!dir.path().join("logs").exists());
+        assert!(
+            config
+                .list_executions(&ExecutionQuery::default())
+                .unwrap()
+                .is_empty()
+        );
+    }
 
     #[test]
     fn explicit_dot_workspace_uses_absolute_canonical_test_store() {

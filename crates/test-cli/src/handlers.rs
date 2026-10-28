@@ -8,8 +8,8 @@ use log_api::{
 };
 use spec_api::{SpecStore, SpecVerificationOutcome, recompute_spec_verified_state};
 use test_api::{
-    BenchmarkQuery, ExecutionQuery, TestError, TestStoreConfig, ValidationExecution,
-    ValidationLinks, ValidationOutcome, ValidationProvenance, ValidationSpec,
+    BenchmarkQuery, ExecutionQuery, TestStoreConfig, ValidationExecution, ValidationLinks,
+    ValidationOutcome, ValidationProvenance, ValidationSpec,
 };
 
 use crate::{CliRunError, RunArgs, TestCommand};
@@ -236,23 +236,47 @@ pub(crate) fn run_harness(
 ) -> Result<Value, CliRunError> {
     use std::{fs, process::Command, time::Instant};
 
-    let execution_id = match (args.id, args.run_id.as_deref()) {
+    let validation_spec = config.get_spec(&args.spec_id)?;
+    let provenance = merge_run_provenance(
+        &validation_spec.provenance,
+        ValidationProvenance {
+            source_path: args.source_path,
+            test_id: args.test_id,
+            domain: args.domain,
+            operation: args.operation,
+            transport: args.transport,
+            run_id: args.run_id,
+        },
+    )?;
+    let execution_id = match (args.id, provenance.run_id.as_deref()) {
         (Some(id), _) => id,
         (None, Some(run_id)) => format!("{run_id}-{}", args.spec_id),
         (None, None) => args.spec_id.clone(),
     };
     let capture_id = format!("{execution_id}-log");
 
-    let validation_spec = match config.get_spec(&args.spec_id) {
-        Ok(spec) => Some(spec),
-        Err(TestError::SpecNotFound(_)) => None,
-        Err(error) => return Err(CliRunError::Test(error)),
-    };
-    let slow_threshold_ms = args.slow_threshold_ms.or_else(|| {
-        validation_spec
-            .as_ref()
-            .and_then(|spec| spec.slow_threshold_ms)
-    });
+    let command = validation_spec.command.as_deref().ok_or_else(|| {
+        CliRunError::BadRequest(format!(
+            "validation spec '{}' has no command; update the definition before running it",
+            args.spec_id
+        ))
+    })?;
+    if command.trim().is_empty() {
+        return Err(CliRunError::BadRequest(format!(
+            "command for validation spec '{}' must not be empty",
+            args.spec_id
+        )));
+    }
+    let slow_threshold_ms = validation_spec.slow_threshold_ms;
+    let mut execution = ValidationExecution::new(
+        execution_id.clone(),
+        args.spec_id.clone(),
+        ValidationOutcome::Passed,
+        Utc::now(),
+    );
+    execution.links = validation_spec.links.clone();
+    execution.provenance = provenance;
+    execution.validate_interoperability_contract()?;
 
     let (shell, shell_flag) = if cfg!(windows) {
         ("cmd", "/C")
@@ -264,9 +288,9 @@ pub(crate) fn run_harness(
     let executed_at = Utc::now();
     let output = Command::new(shell)
         .arg(shell_flag)
-        .arg(&args.command)
+        .arg(command)
         .output()
-        .map_err(|err| CliRunError::Spawn(args.command.clone(), err.to_string()))?;
+        .map_err(|err| CliRunError::Spawn(command.to_string(), err.to_string()))?;
     let duration_ms = started.elapsed().as_millis() as u64;
 
     let outcome = if output.status.success() {
@@ -296,37 +320,18 @@ pub(crate) fn run_harness(
     );
     let detail = format!(
         "command `{}` exited with {} in {duration_ms}ms",
-        args.command,
+        command,
         exit_code
             .map(|code| code.to_string())
             .unwrap_or_else(|| "signal".to_string()),
     );
 
-    let mut execution = ValidationExecution::new(
-        execution_id.clone(),
-        args.spec_id.clone(),
-        outcome.clone(),
-        executed_at,
-    );
+    execution.outcome = outcome.clone();
+    execution.executed_at = executed_at;
     execution.duration_ms = Some(duration_ms);
     execution.throughput = args.throughput;
     execution.detail = Some(detail.clone());
-    execution.links = ValidationLinks {
-        spec_ids: validation_spec
-            .map(|spec| spec.links.spec_ids)
-            .unwrap_or_default(),
-        ticket_ids: args.ticket_ids.clone(),
-        log_ids: vec![capture_id.clone()],
-        ..Default::default()
-    };
-    execution.provenance = ValidationProvenance {
-        source_path: args.source_path.clone(),
-        test_id: args.test_id.clone(),
-        domain: args.domain.clone(),
-        operation: args.operation.clone(),
-        transport: args.transport.clone(),
-        run_id: args.run_id.clone(),
-    };
+    execution.links.log_ids.push(capture_id.clone());
     let execution_path = config.record_execution(&execution)?;
     let (verified_spec_ids, spec_verification) =
         recompute_linked_specs(spec_root, config, &execution.links.spec_ids);
@@ -340,7 +345,7 @@ pub(crate) fn run_harness(
         locator: locator.clone(),
         detail: Some(detail),
         links: ValidationLogLinks {
-            ticket_ids: args.ticket_ids,
+            ticket_ids: execution.links.ticket_ids.clone(),
             validation_execution_ids: vec![execution_id.clone()],
             ..Default::default()
         },
@@ -351,13 +356,13 @@ pub(crate) fn run_harness(
         "status": "ran",
         "kind": "validation-run",
         "execution_id": execution_id,
-        "run_id": args.run_id,
+        "run_id": execution.provenance.run_id,
         "spec_id": args.spec_id,
-        "source_path": args.source_path,
-        "test_id": args.test_id,
-        "domain": args.domain,
-        "operation": args.operation,
-        "transport": args.transport,
+        "source_path": execution.provenance.source_path,
+        "test_id": execution.provenance.test_id,
+        "domain": execution.provenance.domain,
+        "operation": execution.provenance.operation,
+        "transport": execution.provenance.transport,
         "outcome": outcome,
         "exit_code": exit_code,
         "duration_ms": duration_ms,
@@ -370,6 +375,32 @@ pub(crate) fn run_harness(
         "verified_spec_ids": verified_spec_ids,
         "spec_verification": spec_verification,
     }))
+}
+
+fn merge_run_provenance(
+    stored: &ValidationProvenance,
+    supplied: ValidationProvenance,
+) -> Result<ValidationProvenance, CliRunError> {
+    fn field(
+        name: &str,
+        stored: &Option<String>,
+        supplied: Option<String>,
+    ) -> Result<Option<String>, CliRunError> {
+        if stored.is_some() && supplied.is_some() {
+            return Err(CliRunError::BadRequest(format!(
+                "'{name}' is already defined in the validation spec; do not supply it again"
+            )));
+        }
+        Ok(supplied.or_else(|| stored.clone()))
+    }
+    Ok(ValidationProvenance {
+        source_path: field("source_path", &stored.source_path, supplied.source_path)?,
+        test_id: field("test_id", &stored.test_id, supplied.test_id)?,
+        domain: field("domain", &stored.domain, supplied.domain)?,
+        operation: field("operation", &stored.operation, supplied.operation)?,
+        transport: field("transport", &stored.transport, supplied.transport)?,
+        run_id: field("run_id", &stored.run_id, supplied.run_id)?,
+    })
 }
 
 fn recompute_linked_specs(
@@ -459,4 +490,39 @@ pub(crate) fn parse_timestamp(raw: Option<&str>) -> Result<DateTime<Utc>, CliRun
 
 pub(crate) fn to_value<T: serde::Serialize>(value: &T) -> Result<Value, CliRunError> {
     serde_json::to_value(value).map_err(|err| CliRunError::Serialization(err.to_string()))
+}
+
+#[cfg(test)]
+mod run_provenance_tests {
+    use super::*;
+
+    #[test]
+    fn every_stored_provenance_field_rejects_repeated_or_conflicting_input() {
+        let stored = ValidationProvenance {
+            source_path: Some("source.rs".into()),
+            test_id: Some("case".into()),
+            domain: Some("test".into()),
+            operation: Some("run".into()),
+            transport: Some("cli".into()),
+            run_id: Some("group".into()),
+        };
+        assert_eq!(
+            merge_run_provenance(&stored, ValidationProvenance::default()).unwrap(),
+            stored,
+        );
+        for field in [
+            "source_path",
+            "test_id",
+            "domain",
+            "operation",
+            "transport",
+            "run_id",
+        ] {
+            for value in ["same-or-different", ""] {
+                let supplied = serde_json::from_value(json!({field: value})).unwrap();
+                let error = merge_run_provenance(&stored, supplied).unwrap_err();
+                assert!(error.to_string().contains(field), "{error}");
+            }
+        }
+    }
 }
