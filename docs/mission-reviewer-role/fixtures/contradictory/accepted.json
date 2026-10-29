@@ -1,0 +1,77 @@
+{
+  "mission_id": "00000000-0000-4000-8000-000000000053",
+  "bundle": {
+    "manifest": {
+      "schema_version": 1,
+      "revision": 2,
+      "title": "Contradictory review fixture",
+      "objective": "Deliver a report with a passing validation result.",
+      "waypoint_files": [],
+      "execution_order": ["review"],
+      "artifacts": ["evidence/receipt.md"],
+      "requirements": [
+        {
+          "id": "report-must-pass",
+          "text": "Deliver the W1 report with a passing validation result.",
+          "deferred": false,
+          "canonical_criteria": []
+        }
+      ],
+      "validation_gates": [
+        {
+          "command": "fixture-only: inspect receipt",
+          "cwd": null
+        }
+      ],
+      "notes": [],
+      "operator_results": [
+        {
+          "waypoint_id": "review",
+          "outcome": "failed",
+          "operator_command": "fixture-only: inspect receipt",
+          "evidence_pointer": "evidence/receipt.md"
+        }
+      ]
+    },
+    "waypoints": [
+      {
+        "waypoint_id": "review",
+        "title": "Review Part",
+        "depends_on": [],
+        "mode": "execution-side-effect",
+        "scope": {
+          "kind": "single-session"
+        },
+        "state": "completed",
+        "ticket_ref": null,
+        "child_mission_ref": null,
+        "relationships": {
+          "specification_ids": [],
+          "criteria": [],
+          "executions": []
+        },
+        "session_package": "contradictory-fixture",
+        "prompt": "Inspect the contradictory-entry fixture and linked receipt.",
+        "artifacts": ["evidence/receipt.md"],
+        "requirement_ids": ["report-must-pass"],
+        "non_goals": ["Do not treat a failed result as acceptance."],
+        "validation": [
+          {
+            "command": "fixture-only: inspect receipt",
+            "cwd": null
+          }
+        ],
+        "commit_checkpoint": {
+          "message": "fixture: contradictory review example"
+        },
+        "part_markdown": "The report was published. The linked validation receipt records the gate outcome; no result is inferred here."
+      }
+    ]
+  },
+  "label_mapping": {
+    "revision": 2,
+    "labels": {
+      "W1": "review"
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "mission_id": "00000000-0000-4000-8000-000000000051",
+  "bundle": {
+    "manifest": {
+      "schema_version": 1,
+      "revision": 1,
+      "title": "Complete review fixture",
+      "objective": "Publish one reviewable Part and its linked evidence.",
+      "waypoint_files": [],
+      "execution_order": ["review"],
+      "artifacts": ["evidence/receipt.md"],
+      "requirements": [
+        {
+          "id": "publish-review-and-receipt",
+          "text": "Publish the W1 review Part and link its validation receipt.",
+          "deferred": false,
+          "canonical_criteria": []
+        }
+      ],
+      "validation_gates": [
+        {
+          "command": "fixture-only: inspect receipt",
+          "cwd": null
+        }
+      ],
+      "notes": [],
+      "operator_results": [
+        {
+          "waypoint_id": "review",
+          "outcome": "passed",
+          "operator_command": "fixture-only: inspect receipt",
+          "evidence_pointer": "evidence/receipt.md"
+        }
+      ]
+    },
+    "waypoints": [
+      {
+        "waypoint_id": "review",
+        "title": "Review Part",
+        "depends_on": [],
+        "mode": "execution-side-effect",
+        "scope": {
+          "kind": "single-session"
+        },
+        "state": "completed",
+        "ticket_ref": null,
+        "child_mission_ref": null,
+        "relationships": {
+          "specification_ids": [],
+          "criteria": [],
+          "executions": []
+        },
+        "session_package": "review-fixture",
+        "prompt": "Inspect the complete-entry fixture and linked evidence.",
+        "artifacts": ["evidence/receipt.md"],
+        "requirement_ids": ["publish-review-and-receipt"],
+        "non_goals": ["Do not claim product acceptance."],
+        "validation": [
+          {
+            "command": "fixture-only: inspect receipt",
+            "cwd": null
+          }
+        ],
+        "commit_checkpoint": {
+          "message": "fixture: complete review example"
+        },
+        "part_markdown": "The promised review Part is present. The linked receipt is illustrative fixture data only and does not establish product acceptance."
+      }
+    ]
+  },
+  "label_mapping": {
+    "revision": 1,
+    "labels": {
+      "W1": "review"
+    }
+  }
+}

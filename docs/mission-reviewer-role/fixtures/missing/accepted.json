@@ -1,0 +1,70 @@
+{
+  "mission_id": "00000000-0000-4000-8000-000000000052",
+  "bundle": {
+    "manifest": {
+      "schema_version": 1,
+      "revision": 3,
+      "title": "Missing artifact review fixture",
+      "objective": "Deliver the W1 report and its validation receipt.",
+      "waypoint_files": [],
+      "execution_order": ["review"],
+      "artifacts": ["evidence/receipt.md", "unavailable-report.md"],
+      "requirements": [
+        {
+          "id": "publish-review-and-receipt",
+          "text": "Publish the W1 review Part and link its validation receipt.",
+          "deferred": false,
+          "canonical_criteria": []
+        }
+      ],
+      "validation_gates": [
+        {
+          "command": "fixture-only: inspect receipt",
+          "cwd": null
+        }
+      ],
+      "notes": [],
+      "operator_results": []
+    },
+    "waypoints": [
+      {
+        "waypoint_id": "review",
+        "title": "Review Part",
+        "depends_on": [],
+        "mode": "execution-side-effect",
+        "scope": {
+          "kind": "single-session"
+        },
+        "state": "completed",
+        "ticket_ref": null,
+        "child_mission_ref": null,
+        "relationships": {
+          "specification_ids": [],
+          "criteria": [],
+          "executions": []
+        },
+        "session_package": "missing-fixture",
+        "prompt": "Inspect the missing-artifact fixture and linked evidence.",
+        "artifacts": ["evidence/receipt.md", "unavailable-report.md"],
+        "requirement_ids": ["publish-review-and-receipt"],
+        "non_goals": ["Do not infer missing artifacts."],
+        "validation": [
+          {
+            "command": "fixture-only: inspect receipt",
+            "cwd": null
+          }
+        ],
+        "commit_checkpoint": {
+          "message": "fixture: missing review example"
+        },
+        "part_markdown": "The accepted W1 Part content exists in this record, but its generated file is intentionally absent from this fixture."
+      }
+    ]
+  },
+  "label_mapping": {
+    "revision": 3,
+    "labels": {
+      "W1": "review"
+    }
+  }
+}
