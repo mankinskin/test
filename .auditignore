@@ -1,0 +1,3 @@
+# Markdown link audit source exclusions (gitignore syntax; see audit-cli README).
+# Reviewer-role fixtures intentionally contain missing-artifact links.
+/docs/mission-reviewer-role/fixtures/
