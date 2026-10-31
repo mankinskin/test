@@ -14,11 +14,11 @@ Generated projections (not proof of acceptance):
 
 - [Review entry](README.md)
 - [Roadmap](ROADMAP.md)
-- [W1](01-review.md)
+- `01-review.md`
 
 ## Declared evidence
 
-- [Validation receipt](../evidence/receipt.md)
+- `../evidence/receipt.md`
 - `unavailable-report.md`: unavailable (mission-reference-context-unavailable).
 
 ## Verification

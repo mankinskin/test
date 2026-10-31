@@ -1,10 +1,10 @@
 # Mission Review Agent manual walkthrough
 
-This walkthrough evaluates the [Mission Review Agent](../../../.agents/agents/mission-review.agent.md)
-against the [generated review-entry contract](../../../mission/README.md#generated-review-entry-and-verification)
-and the approved [Mission reviewer-role Spec](../../../.workflow-tools/spec/specs/d6899bdd-657c-4f50-8475-8930d39b276c/body.md).
-It is scoped to [Ticket bf85445e](../../../.workflow-tools/ticket/tickets/bf85445e-a6a2-4a64-9d9d-a2cf3ade5460/ticket.toml).
-The registered gate is [`w8-mission-reviewer-role`](../../../.workflow-tools/test/specs/w8-mission-reviewer-role.json),
+This walkthrough evaluates the [Mission Review Agent](https://github.com/mankinskin/workflow-tools/blob/main/.agents/agents/mission-review.agent.md)
+against the [generated review-entry contract](https://github.com/mankinskin/workflow-tools/blob/main/mission/README.md#generated-review-entry-and-verification)
+and the approved [Mission reviewer-role Spec](https://github.com/mankinskin/workflow-tools/blob/main/.workflow-tools/spec/specs/d6899bdd-657c-4f50-8475-8930d39b276c/body.md).
+It is scoped to [Ticket bf85445e](https://github.com/mankinskin/workflow-tools/blob/main/.workflow-tools/ticket/tickets/bf85445e-a6a2-4a64-9d9d-a2cf3ade5460/ticket.toml).
+The registered gate is [`w8-mission-reviewer-role`](https://github.com/mankinskin/workflow-tools/blob/main/.workflow-tools/test/specs/w8-mission-reviewer-role.json),
 which targets `mission-review-role-evidence-citations` and
 `mission-review-role-audit-compatibility`.
 
@@ -98,7 +98,7 @@ other Mission records to reconstruct those omissions.
 
 ## Compatibility and boundary
 
-The existing [Audit Agent](../../../audit/.agents/agents/audit.agent.md)
+The existing [Audit Agent](https://github.com/mankinskin/audit/blob/main/.agents/agents/audit.agent.md)
 remains present and unmodified; this role has no audit execution or mutation
 grant. The Mission Review Agent reports only its cited Mission evidence.
 
