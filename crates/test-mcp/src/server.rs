@@ -17,6 +17,25 @@ use test_api::{
 };
 use uuid::Uuid;
 
+#[cfg(test)]
+mod contract_tests {
+    use super::*;
+
+    #[test]
+    fn advertised_validation_contracts_expose_command_effects_and_overwrites() {
+        let tools = TestServer::tool_router().list_all();
+        assert_eq!(tools.len(), 11);
+        let run = tools.iter().find(|tool| tool.name == "test_run").unwrap();
+        let description = run.description.as_deref().unwrap();
+        assert!(description.contains("NOT the selected store"));
+        assert!(description.contains("inspect outcome/exit_code"));
+        let record = tools.iter().find(|tool| tool.name == "test_record_execution").unwrap();
+        assert!(record.description.as_deref().unwrap().contains("overwrite"));
+        let resume = tools.iter().find(|tool| tool.name == "test_move_resume").unwrap();
+        assert!(resume.description.as_deref().unwrap().contains("Omit workspace"));
+    }
+}
+
 // ── Input types ───────────────────────────────────────────────────────────────
 
 /// Run-only metadata. Definition-owned fields cannot be supplied here.
@@ -45,7 +64,7 @@ pub struct RunInput {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RecordSpecInput {
-    /// Concrete workspace path, repo root, .test store path, or path inside that store. Do not use omitted, empty, 'default', or '..' for entity creation; use '.' explicitly to target the MCP server process's current working directory.
+    /// Explicit workspace root or test store path required for this input; omitted/empty/default/.. rejected; . means server cwd. Writes use canonical .workflow-tools/test; reads do not create missing stores.
     pub workspace: String,
     /// Stable validation spec id (e.g. `vt-core-tests`). Used as the file name.
     pub id: String,
@@ -73,7 +92,7 @@ pub struct RecordSpecInput {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RecordExecutionInput {
-    /// Concrete workspace path, repo root, .test store path, or path inside that store. Do not use omitted, empty, 'default', or '..' for entity creation; use '.' explicitly to target the MCP server process's current working directory.
+    /// Explicit workspace root or test store path required for this input; omitted/empty/default/.. rejected; . means server cwd. Writes use canonical .workflow-tools/test; reads do not create missing stores.
     pub workspace: String,
     /// Stable execution id (e.g. `exec-vt-core-tests-20260615`). Used as file name.
     pub id: String,
@@ -441,7 +460,7 @@ impl TestServer {
 impl TestServer {
     #[tool(
         name = "test_run",
-        description = "Execute a trusted stored validation definition. Command, budget and all links come only from the definition. Supply provenance only if absent from the definition. Commands run in the server process working directory, not the selected store. Captures timing, outcome and logs using the same harness as the CLI."
+        description = "Execute the trusted stored validation command through the shell in server process cwd, NOT the selected store; no timeout. Command/budget/links come from the stored spec; supplied provenance only fills missing values. Requires domain/operation/run_id and at least one link. Records an execution (same id overwrites), captures stdout/stderr in a log file and recomputes linked spec verification. Nonzero exit is a successful tool response: inspect outcome/exit_code; output is located by log_locator, not returned inline. Explicit workspace required for writes."
     )]
     pub async fn test_run(
         &self,
@@ -484,7 +503,7 @@ impl TestServer {
 
     #[tool(
         name = "test_record_spec",
-        description = "Record (create or overwrite) a validation spec describing a test or check to run."
+        description = "Create or overwrite the complete validation spec in an explicit workspace; omitted fields are cleared, not patched. ID permits A-Za-z0-9 dot underscore hyphen. This tool cannot set doc_evidence_ids/log_ids/provenance; does not run validation."
     )]
     pub async fn test_record_spec(
         &self,
@@ -519,7 +538,7 @@ impl TestServer {
 
     #[tool(
         name = "test_record_execution",
-        description = "Record (create or overwrite) a validation execution capturing the outcome of a check, linked to tickets/specs/criteria."
+        description = "Create or overwrite an execution in an explicit workspace. Requires provenance domain/operation/run_id and at least one spec_ids/acceptance_criterion_ids/ticket_ids link despite optional schema fields. Retains the two newest runs per validation_spec_id, deleting older run-linked executions. Records evidence; does not run a command."
     )]
     pub async fn test_record_execution(
         &self,
@@ -566,7 +585,7 @@ impl TestServer {
 
     #[tool(
         name = "test_get_spec",
-        description = "Fetch a single validation spec by id."
+        description = "Read a stored validation spec. Omitted workspace searches the server and discoverable test stores; first match wins. Explicit workspace pins a store. Missing IDs return invalid_params."
     )]
     pub async fn test_get_spec(
         &self,
@@ -585,7 +604,7 @@ impl TestServer {
 
     #[tool(
         name = "test_get_execution",
-        description = "Fetch a single validation execution by id."
+        description = "Read an execution record. Omitted workspace searches the server and discoverable test stores; first match wins. Explicit workspace pins a store. Missing IDs return invalid_params; recorded success is not fresh command execution."
     )]
     pub async fn test_get_execution(
         &self,
@@ -604,7 +623,7 @@ impl TestServer {
 
     #[tool(
         name = "test_list_specs",
-        description = "List all validation specs, sorted by id. Aggregates across every discoverable `.test` store unless `workspace` pins to one."
+        description = "List validation specs across discoverable stores unless workspace pins one. Duplicated IDs keep the first store copy (server store first). Sorted by id, no limit; returns count/specs."
     )]
     pub async fn test_list_specs(
         &self,
@@ -627,7 +646,7 @@ impl TestServer {
 
     #[tool(
         name = "test_list_executions",
-        description = "Query validation executions by ticket id, validation spec id, and/or outcome (newest first). Aggregates across every discoverable `.test` store unless `workspace` pins to one."
+        description = "Query executions across discoverable stores unless workspace pins one. Filters include ticket/validation spec/outcome/duration/domain/operation/transport/run_id. sort is newest-first (default, alias newest) or slowest-first (alias slowest). Limit applies after merging/sorting; omitted unlimited, zero returns none. Returns count/executions."
     )]
     pub async fn test_list_executions(
         &self,
@@ -673,7 +692,7 @@ impl TestServer {
 
     #[tool(
         name = "test_move_preflight",
-        description = "Read-only preflight plan for moving a validation spec or execution to another workspace store."
+        description = "Read-only move plan for kind=spec/execution (case-insensitive), to an explicit destination. Omit workspace to use the configured source store. Inspect IDs/blockers; no command execution or move."
     )]
     pub async fn test_move_preflight(
         &self,
@@ -701,7 +720,7 @@ impl TestServer {
 
     #[tool(
         name = "test_move_apply",
-        description = "Execute a supported validation spec/execution move to another workspace store."
+        description = "Re-plan then execute a supported validation entity-set move. Omit workspace to use the configured source store. kind=spec/execution; mutates stores. Retain returned journal_id/phase for recovery, not blind apply replay."
     )]
     pub async fn test_move_apply(
         &self,
@@ -738,7 +757,7 @@ impl TestServer {
 
     #[tool(
         name = "test_move_resume",
-        description = "Resume an interrupted validation spec/execution move from a journal id."
+        description = "Resume a validation move; id is journal UUID, not execution/spec ID, and kind must match the planned kind. Omit workspace to use configured source store."
     )]
     pub async fn test_move_resume(
         &self,
@@ -762,7 +781,7 @@ impl TestServer {
 
     #[tool(
         name = "test_move_rollback",
-        description = "Roll back a validation spec/execution move from a journal id."
+        description = "Roll back a validation move; id is journal UUID, not execution/spec ID, and kind must match the planned kind. Omit workspace to use configured source store."
     )]
     pub async fn test_move_rollback(
         &self,
